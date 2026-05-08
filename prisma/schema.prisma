@@ -1,0 +1,238 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
+
+enum SellerVerificationStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AuctionStatus {
+  PENDING_APPROVAL
+  UPCOMING
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum ProductStatus {
+  AVAILABLE
+  IN_AUCTION
+  SOLD
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  REJECTED
+}
+
+model User {
+  id              String       @id @default(uuid())
+  email           String       @unique
+  emailVerified   Boolean      @default(false)
+  password        String
+  name            String
+  avatar          String?
+  phone           String?
+  defaultShippingAddress String?
+  role            Role         @default(USER)
+  status          UserStatus   @default(ACTIVE)
+  sellerVerificationStatus SellerVerificationStatus @default(NONE)
+  shopName        String?
+  idNumber        String?
+  warehouseAddress String?
+  bankAccount     String?
+  rating          Float        @default(0)
+  totalReviews    Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  products        Product[]
+  bids            Bid[]
+  wonAuctions     Auction[]    @relation("AuctionWinner")
+  favorites       Favorite[]
+  messagesSent    Message[]    @relation("MessageSender")
+  messagesReceived Message[]    @relation("MessageReceiver")
+  reviewsGiven    Review[]     @relation("ReviewSender")
+  reviewsReceived Review[]     @relation("ReviewReceiver")
+  ordersAsBuyer   Order[]      @relation("OrderBuyer")
+  ordersAsSeller  Order[]      @relation("OrderSeller")
+  reportsSubmitted Report[]    @relation("Reporter")
+  reportsReceived  Report[]    @relation("ReportedUser")
+  emailVerificationTokens VerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model VerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  slug     String    @unique
+  image    String?
+
+  products Product[]
+}
+
+model Product {
+  id          String        @id @default(uuid())
+  title       String
+  description String
+  images      String[]
+  condition   String?       // Mới 100%, Đã sử dụng (Tốt)...
+  location    String?       // Vị trí (Hà Nội, HCM...)
+  status      ProductStatus @default(AVAILABLE)
+  ownerId     String
+  categoryId  String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  owner       User          @relation(fields: [ownerId], references: [id])
+  category    Category      @relation(fields: [categoryId], references: [id])
+  auction     Auction?
+}
+
+model Auction {
+  id              String        @id @default(uuid())
+  productId       String        @unique
+  startingPrice   Float
+  currentPrice    Float
+  reservePrice    Float?        // Giá dự trữ
+  buyNowPrice     Float?        // Giá mua ngay
+  shippingCost    Float?        // Phí vận chuyển
+  bidIncrement    Float         @default(10000)
+  currentWinnerId String?
+  startTime       DateTime      @default(now())
+  endTime         DateTime
+  status          AuctionStatus @default(ACTIVE)
+  views           Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  product         Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  currentWinner   User?      @relation("AuctionWinner", fields: [currentWinnerId], references: [id])
+  bids            Bid[]
+  favorites       Favorite[]
+  reports         Report[]
+  order           Order?
+}
+
+model Bid {
+  id        String   @id @default(uuid())
+  auctionId String
+  userId    String
+  amount    Float
+  createdAt DateTime @default(now())
+
+  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String
+  auctionId String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, auctionId])
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  content    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  reviewerId  String
+  revieweeId  String
+  rating      Int
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  reviewer    User     @relation("ReviewSender", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewee    User     @relation("ReviewReceiver", fields: [revieweeId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id              String   @id @default(uuid())
+  reason          String
+  status          ReportStatus  @default(PENDING)
+  reporterId      String
+  reportedUserId  String?  // Nếu report user
+  auctionId       String?  // Nếu report bài đăng (listing)
+  createdAt       DateTime @default(now())
+
+  reporter        User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser    User?    @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  auction         Auction? @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  auctionId   String      @unique
+  buyerId     String
+  sellerId    String
+  totalAmount Float
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  auction     Auction     @relation(fields: [auctionId], references: [id])
+  buyer       User        @relation("OrderBuyer", fields: [buyerId], references: [id])
+  seller      User        @relation("OrderSeller", fields: [sellerId], references: [id])
+}
