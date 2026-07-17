@@ -16,9 +16,35 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { MessagesModule } from './messages/messages.module';
 import { TasksModule } from './tasks/tasks.module';
 import { UploadModule } from './upload/upload.module';
+import { PaymentsModule } from './payments/payments.module';
+import { EscrowModule } from './escrow/escrow.module';
+import { WalletsModule } from './wallets/wallets.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), PrismaModule, UsersModule, ProductsModule, AuctionsModule, BidsModule, AuthModule, CategoriesModule, AdminModule, FavoritesModule, OrdersModule, ReviewsModule, MessagesModule, TasksModule, UploadModule],
+  imports: [
+    ScheduleModule.forRoot(),
+    PrismaModule,
+    UsersModule,
+    ProductsModule,
+    AuctionsModule,
+    BidsModule,
+    AuthModule,
+    CategoriesModule,
+    AdminModule,
+    FavoritesModule,
+    OrdersModule,
+    ReviewsModule,
+    MessagesModule,
+    TasksModule,
+    UploadModule,
+    PaymentsModule,
+    EscrowModule,
+    WalletsModule,
+    NotificationsModule,
+    AiModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

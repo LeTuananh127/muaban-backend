@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { CreateProductAndAuctionDto } from './dto/product.dto';
+import { CreateProductAndAuctionDto, UpdateProductAndAuctionDto } from './dto/product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -33,5 +33,41 @@ export class ProductsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.USER)
+  @Patch(':id')
+  updateListing(
+    @Param('id') id: string,
+    @Body() updateData: UpdateProductAndAuctionDto,
+    @Request() req
+  ) {
+    return this.productsService.updateListing(id, updateData, req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.USER)
+  @Delete(':id')
+  deleteListing(@Param('id') id: string, @Request() req) {
+    return this.productsService.deleteListing(id, req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.USER)
+  @Post(':id/cancel')
+  cancelListing(@Param('id') id: string, @Request() req) {
+    return this.productsService.cancelListing(id, req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.USER)
+  @Post(':id/relist')
+  relistListing(
+    @Param('id') id: string,
+    @Body() relistData: any,
+    @Request() req
+  ) {
+    return this.productsService.relistListing(id, relistData, req.user.userId);
   }
 }

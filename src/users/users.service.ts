@@ -24,6 +24,9 @@ export class UsersService {
       select: {
         id: true, email: true, name: true, avatar: true,
         role: true, status: true, rating: true, totalReviews: true,
+        shopName: true, sellerVerificationStatus: true,
+        idNumber: true, idImages: true, warehouseAddress: true,
+        bankAccount: true, phone: true,
         createdAt: true,
       },
     });
@@ -47,6 +50,7 @@ export class UsersService {
     data: {
       shopName: string;
       idNumber: string;
+      idImages: string[];
       warehouseAddress: string;
       bankAccount: string;
       phone?: string;
@@ -57,6 +61,7 @@ export class UsersService {
       data: {
         shopName: data.shopName,
         idNumber: data.idNumber,
+        idImages: data.idImages,
         warehouseAddress: data.warehouseAddress,
         bankAccount: data.bankAccount,
         phone: data.phone,
@@ -68,6 +73,27 @@ export class UsersService {
         name: true,
         sellerVerificationStatus: true,
         shopName: true,
+        idNumber: true,
+        idImages: true,
+      },
+    });
+  }
+
+  async createReport(
+    reporterId: string,
+    data: {
+      reason: string;
+      reportedUserId?: string;
+      auctionId?: string;
+    },
+  ) {
+    return this.prisma.report.create({
+      data: {
+        reason: data.reason,
+        reporterId,
+        reportedUserId: data.reportedUserId || null,
+        auctionId: data.auctionId || null,
+        status: 'PENDING',
       },
     });
   }

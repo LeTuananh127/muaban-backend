@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -33,6 +33,7 @@ export class UsersController {
     @Request() req,
     @Body('shopName') shopName: string,
     @Body('idNumber') idNumber: string,
+    @Body('idImages') idImages: string[],
     @Body('warehouseAddress') warehouseAddress: string,
     @Body('bankAccount') bankAccount: string,
     @Body('phone') phone?: string,
@@ -40,9 +41,25 @@ export class UsersController {
     return this.usersService.submitSellerVerification(req.user.userId, {
       shopName,
       idNumber,
+      idImages,
       warehouseAddress,
       bankAccount,
       phone,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('report')
+  async createReport(
+    @Request() req,
+    @Body('reason') reason: string,
+    @Body('reportedUserId') reportedUserId?: string,
+    @Body('auctionId') auctionId?: string,
+  ) {
+    return this.usersService.createReport(req.user.userId, {
+      reason,
+      reportedUserId,
+      auctionId,
     });
   }
 }

@@ -49,3 +49,51 @@ export class CreateProductAndAuctionDto {
   @IsNotEmpty()
   endTime: string;
 }
+
+export class UpdateProductAndAuctionDto {
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  images?: string[];
+
+  @IsString()
+  @IsOptional()
+  condition?: string;
+
+  @IsString()
+  @IsOptional()
+  location?: string;
+
+  @IsUUID()
+  @IsOptional()
+  categoryId?: string;
+
+  // Auction
+  @IsNumber()
+  @IsOptional()
+  startingPrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  reservePrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  buyNowPrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  shippingCost?: number;
+
+  @IsString()
+  @IsOptional()
+  endTime?: string;
+}

@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ReviewsService {
   constructor(private prisma: PrismaService) {}
 
-  async createReview(reviewerId: string, revieweeId: string, rating: number, comment?: string) {
+  async createReview(reviewerId: string, revieweeId: string, orderId: string, rating: number, comment?: string, images: string[] = []) {
     if (reviewerId === revieweeId) {
       throw new BadRequestException('You cannot review yourself');
     }
@@ -14,30 +14,54 @@ export class ReviewsService {
       throw new BadRequestException('Rating must be between 1 and 5');
     }
 
-    // Check if they had a transaction together (Order exists where one is buyer and other is seller)
-    const transaction = await this.prisma.order.findFirst({
-      where: {
-        OR: [
-          { buyerId: reviewerId, sellerId: revieweeId },
-          { buyerId: revieweeId, sellerId: reviewerId },
-        ],
-        status: 'DELIVERED',
-      },
+    // Check if this specific order exists and involves both users
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
     });
 
-    if (!transaction) {
-      throw new BadRequestException('You can only review users you have completed transactions with');
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const isParticipant =
+      (order.buyerId === reviewerId && order.sellerId === revieweeId) ||
+      (order.buyerId === revieweeId && order.sellerId === reviewerId);
+
+    if (!isParticipant) {
+      throw new BadRequestException('You can only review participants of this order');
+    }
+
+    if (!['DELIVERED', 'COMPLETED'].includes(order.status)) {
+      throw new BadRequestException('You can only review after the order is delivered or completed');
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const review = await tx.review.create({
-        data: {
+      const existingReview = await tx.review.findFirst({
+        where: {
           reviewerId,
-          revieweeId,
-          rating,
-          comment,
+          orderId,
         },
       });
+
+      const review = existingReview
+        ? await tx.review.update({
+            where: { id: existingReview.id },
+            data: {
+              rating,
+              comment,
+              images,
+            },
+          })
+        : await tx.review.create({
+            data: {
+              reviewerId,
+              revieweeId,
+              orderId,
+              rating,
+              comment,
+              images,
+            },
+          });
 
       // Update user rating stats
       const userReviews = await tx.review.findMany({
@@ -70,6 +94,56 @@ export class ReviewsService {
       where: { revieweeId: userId },
       include: {
         reviewer: { select: { id: true, name: true, avatar: true } },
+        order: {
+          include: {
+            auction: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    title: true,
+                    images: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getMyReceivedReviews(userId: string) {
+    return this.prisma.review.findMany({
+      where: { revieweeId: userId },
+      include: {
+        reviewer: { select: { id: true, name: true, avatar: true } },
+        order: {
+          include: {
+            auction: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    title: true,
+                    images: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getMyGivenReviews(userId: string) {
+    return this.prisma.review.findMany({
+      where: { reviewerId: userId },
+      include: {
+        reviewee: { select: { id: true, name: true, avatar: true } },
       },
       orderBy: { createdAt: 'desc' },
     });

@@ -24,6 +24,11 @@ export class OrdersController {
     return this.ordersService.getMySellingOrders(req.user.userId);
   }
 
+  @Get(':id')
+  getOrderById(@Request() req, @Param('id') orderId: string) {
+    return this.ordersService.getOrderById(req.user.userId, orderId);
+  }
+
   @Patch(':id/status')
   updateOrderStatus(
     @Request() req,
@@ -31,5 +36,25 @@ export class OrdersController {
     @Body('status') status: OrderStatus,
   ) {
     return this.ordersService.updateOrderStatus(req.user.userId, orderId, status);
+  }
+
+  @Post(':id/refund')
+  requestRefund(
+    @Request() req,
+    @Param('id') orderId: string,
+    @Body('reason') reason?: string,
+    @Body('images') images?: string[],
+  ) {
+    return this.ordersService.requestRefund(req.user.userId, orderId, reason, images);
+  }
+
+  @Post('refund/:refundId/approve')
+  approveRefund(@Request() req, @Param('refundId') refundId: string, @Body('note') note?: string) {
+    return this.ordersService.approveRefund(req.user.userId, refundId, note);
+  }
+
+  @Post('refund/:refundId/reject')
+  rejectRefund(@Request() req, @Param('refundId') refundId: string, @Body('note') note?: string) {
+    return this.ordersService.rejectRefund(req.user.userId, refundId, note);
   }
 }
