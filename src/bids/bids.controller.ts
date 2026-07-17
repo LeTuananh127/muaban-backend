@@ -21,4 +21,14 @@ export class BidsController {
   ) {
     return this.bidsService.placeBid(req.user.userId, auctionId, amount);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post(':auctionId/auto-bid')
+  setAutoBid(
+    @Request() req,
+    @Param('auctionId') auctionId: string,
+    @Body('maxAmount') maxAmount: number,
+  ) {
+    return this.bidsService.setAutoBid(req.user.userId, auctionId, maxAmount);
+  }
 }

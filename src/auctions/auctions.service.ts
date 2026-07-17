@@ -4,6 +4,7 @@
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAuctionDto } from './dto/auction.dto';
 
@@ -263,5 +264,91 @@ export class AuctionsService {
     return {
       data: Array.from(uniqueByTitle.values()),
     };
+  }
+
+  async buyNow(auctionId: string, buyerId: string) {
+    const auction = await this.prisma.auction.findUnique({
+      where: { id: auctionId },
+      include: {
+        product: true,
+      },
+    });
+
+    if (!auction) {
+      throw new NotFoundException('Auction not found');
+    }
+
+    if (!auction.buyNowPrice) {
+      throw new BadRequestException('This auction does not have a buy now price');
+    }
+
+    if (auction.product.ownerId === buyerId) {
+      throw new BadRequestException('You cannot buy your own auction');
+    }
+
+    if (auction.status !== 'ACTIVE') {
+      throw new BadRequestException('This auction is not active');
+    }
+
+    // Create order with buy now price
+
+
+
+
+    try {
+      const totalAmount = (auction.buyNowPrice as number) + (auction.shippingCost || 0);
+
+      return await this.prisma.$transaction(async (tx) => {
+        const existingOrder = await tx.order.findUnique({
+          where: { auctionId },
+          include: {
+            auction: { include: { product: true } },
+            buyer: { select: { id: true, name: true, avatar: true, email: true, phone: true } },
+            seller: { select: { id: true, name: true, avatar: true, email: true, phone: true } },
+          },
+        });
+
+        if (existingOrder) {
+          return existingOrder;
+        }
+
+        const order = await tx.order.create({
+          data: {
+            auctionId,
+            buyerId,
+            sellerId: auction.product.ownerId,
+            totalAmount,
+            status: OrderStatus.PENDING,
+          },
+          include: {
+            auction: { include: { product: true } },
+            buyer: { select: { id: true, name: true, avatar: true, email: true, phone: true } },
+            seller: { select: { id: true, name: true, avatar: true, email: true, phone: true } },
+          },
+        });
+
+        // Mark auction as ended
+        await tx.auction.update({
+          where: { id: auctionId },
+          data: {
+            status: 'ENDED',
+            currentWinnerId: buyerId,
+          },
+        });
+
+        await tx.product.update({
+          where: { id: auction.productId },
+          data: { status: 'SOLD' },
+        });
+
+        return order;
+      });
+    } catch (error) {
+      console.error('buyNow failed', { auctionId, buyerId, error });
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Unable to buy now');
+    }
   }
 }

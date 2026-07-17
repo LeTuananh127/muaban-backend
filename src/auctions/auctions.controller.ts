@@ -36,4 +36,11 @@ export class AuctionsController {
   findOne(@Param('id') id: string) {
     return this.auctionsService.findOne(id);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.USER)
+  @Post(':id/buy-now')
+  buyNow(@Param('id') id: string, @Request() req) {
+    return this.auctionsService.buyNow(id, req.user.userId);
+  }
 }
