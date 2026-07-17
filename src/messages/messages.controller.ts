@@ -8,13 +8,14 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 export class MessagesController {
   constructor(private readonly messagesService: MessagesService) {}
 
-  @Post()
+  @Post('send')
   sendMessage(
     @Request() req,
     @Body('receiverId') receiverId: string,
     @Body('content') content: string,
+    @Body('auctionId') auctionId?: string,
   ) {
-    return this.messagesService.sendMessage(req.user.userId, receiverId, content);
+    return this.messagesService.sendMessage(req.user.userId, receiverId, content, auctionId);
   }
 
   @Get('conversations')
@@ -23,7 +24,7 @@ export class MessagesController {
   }
 
   @Get(':otherUserId')
-  getMessages(@Request() req, @Param('otherUserId') otherUserId: string) {
+  async getMessages(@Request() req, @Param('otherUserId') otherUserId: string) {
     return this.messagesService.getMessages(req.user.userId, otherUserId);
   }
 
