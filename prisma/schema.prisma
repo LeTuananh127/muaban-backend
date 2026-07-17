@@ -43,7 +43,36 @@ enum OrderStatus {
   PAID
   SHIPPED
   DELIVERED
+  COMPLETED
   CANCELLED
+  DISPUTED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  MOMO
+  STRIPE
+  CASH_ON_DELIVERY
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum EscrowStatus {
+  HELD
+  RELEASED
+  REFUNDED
 }
 
 enum ReportStatus {
@@ -66,12 +95,15 @@ model User {
   sellerVerificationStatus SellerVerificationStatus @default(NONE)
   shopName        String?
   idNumber        String?
+  idImages        String[]     @default([])
   warehouseAddress String?
   bankAccount     String?
   rating          Float        @default(0)
   totalReviews    Int          @default(0)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+
+  withdrawRequests WithdrawRequest[]
 
   products        Product[]
   bids            Bid[]
@@ -87,6 +119,12 @@ model User {
   reportsReceived  Report[]    @relation("ReportedUser")
   emailVerificationTokens VerificationToken[]
   passwordResetTokens PasswordResetToken[]
+  refundRequestsMade RefundRequest[] @relation("RefundRequestBuyer")
+  refundRequestsReceived RefundRequest[] @relation("RefundRequestSeller")
+  wallet            Wallet?   
+  addresses         UserAddress[]
+  notifications     Notification[]
+  autoBids          AutoBid[]
 }
 
 model VerificationToken {
@@ -159,6 +197,8 @@ model Auction {
   favorites       Favorite[]
   reports         Report[]
   order           Order?
+  messages        Message[]
+  autoBids        AutoBid[]
 }
 
 model Bid {
@@ -190,22 +230,29 @@ model Message {
   receiverId String
   content    String
   isRead     Boolean  @default(false)
+  auctionId  String?
   createdAt  DateTime @default(now())
 
   sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   receiver   User     @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  auction    Auction? @relation(fields: [auctionId], references: [id], onDelete: SetNull)
 }
 
 model Review {
   id          String   @id @default(uuid())
   reviewerId  String
   revieweeId  String
+  orderId     String?
   rating      Int
   comment     String?
+  images      String[] @default([])
   createdAt   DateTime @default(now())
 
   reviewer    User     @relation("ReviewSender", fields: [reviewerId], references: [id], onDelete: Cascade)
   reviewee    User     @relation("ReviewReceiver", fields: [revieweeId], references: [id], onDelete: Cascade)
+  order       Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewerId, orderId])
 }
 
 model Report {
@@ -229,10 +276,179 @@ model Order {
   sellerId    String
   totalAmount Float
   status      OrderStatus @default(PENDING)
+  paymentId   String?
+  escrowId    String?
+  paidAt      DateTime?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  refundedAt  DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   auction     Auction     @relation(fields: [auctionId], references: [id])
   buyer       User        @relation("OrderBuyer", fields: [buyerId], references: [id])
   seller      User        @relation("OrderSeller", fields: [sellerId], references: [id])
+  payment     Payment?    @relation(fields: [paymentId], references: [id])
+  escrow      Escrow?     @relation(fields: [escrowId], references: [id])
+  refundRequests RefundRequest[]
+  walletHolds    WalletHold[]
+  reviews        Review[]
 }
+
+model Payment {
+  id              String        @id @default(uuid())
+  orderId         String
+  amount          Float
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  transactionId   String?
+  description     String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  completedAt     DateTime?
+  failedAt        DateTime?
+  failureReason   String?
+
+  orders          Order[]
+}
+
+model Escrow {
+  id              String        @id @default(uuid())
+  orderId         String
+  amount          Float
+  status          EscrowStatus  @default(HELD)
+  heldAt          DateTime      @default(now())
+  releasedAt      DateTime?
+  refundedAt      DateTime?
+  description     String?
+
+  orders          Order[]
+}
+
+model RefundRequest {
+  id          String      @id @default(uuid())
+  orderId     String
+  buyerId     String
+  sellerId    String
+  reason      String?
+  images      String[]    @default([])
+  status      RefundStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  processedAt DateTime?
+  processedBy String?
+  note        String?
+
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  buyer       User        @relation("RefundRequestBuyer", fields: [buyerId], references: [id])
+  seller      User        @relation("RefundRequestSeller", fields: [sellerId], references: [id])
+}
+
+model Wallet {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  balance    Float    @default(0)
+  currency   String   @default("VND")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id])
+  transactions WalletTransaction[]
+  holds       WalletHold[]
+}
+
+model WalletTransaction {
+  id         String   @id @default(uuid())
+  walletId   String
+  type       String   // CREDIT | DEBIT | REFUND | TOPUP
+  amount     Float
+  reference  String?  // paymentId, orderId, admin note
+  createdAt  DateTime @default(now())
+
+  wallet     Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+}
+
+model WalletHold {
+  id         String   @id @default(uuid())
+  walletId   String
+  amount     Float
+  reason     String?
+  createdAt  DateTime @default(now())
+  releasedAt DateTime?
+  releasedBy String?
+  orderId    String?
+
+  wallet     Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  order      Order?   @relation(fields: [orderId], references: [id])
+}
+
+model OtpVerification {
+  id        String   @id @default(uuid())
+  phone     String   @unique
+  otp       String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model UserAddress {
+  id            String   @id @default(uuid())
+  userId        String
+  recipientName String
+  phone         String
+  phoneVerified Boolean  @default(false)
+  province      String
+  district      String
+  ward          String
+  detailAddress String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  content     String
+  type        String   // NEW_BID, OUTBID, AUCTION_ENDED_WINNER, AUCTION_ENDED_NO_BIDS, etc.
+  isRead      Boolean  @default(false)
+  referenceId String?  // auctionId
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WithdrawRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  amount      Float
+  bankName    String
+  accountNo   String
+  accountName String
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+  note        String?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AutoBid {
+  id        String   @id @default(uuid())
+  auctionId String
+  userId    String
+  maxAmount Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, auctionId])
+}
+
+
+
