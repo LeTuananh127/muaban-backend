@@ -1,5 +1,7 @@
 import { Controller, Get, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { OrdersService } from '../orders/orders.service';
+import { WalletsService } from '../wallets/wallets.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -9,7 +11,11 @@ import { Role } from '@prisma/client';
 @Roles(Role.ADMIN) // << CHỈ CÓ ADMIN ĐƯỢC VÀO CÁC API TRONG ĐÂY
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly ordersService: OrdersService,
+    private readonly walletsService: WalletsService,
+  ) {}
 
   // ===================== DÀNH CHO QUẢN LÝ USER =====================
   // API Lấy toàn bộ User
@@ -77,5 +83,54 @@ export class AdminController {
     @Body('status') status: 'RESOLVED' | 'REJECTED',
   ) {
     return this.adminService.resolveReport(id, status);
+  }
+
+  // ===================== DÀNH CHO QUẢN LÝ TRANH CHẤP =====================
+  @Get('disputes')
+  getDisputes() {
+    return this.adminService.getDisputes();
+  }
+
+  @Patch('disputes/:orderId/approve')
+  approveDispute(
+    @Param('orderId') orderId: string,
+    @Body('note') note?: string,
+  ) {
+    return this.ordersService.adminApproveDispute(orderId, note);
+  }
+
+  @Patch('disputes/:orderId/reject')
+  rejectDispute(
+    @Param('orderId') orderId: string,
+    @Body('note') note?: string,
+  ) {
+    return this.ordersService.adminRejectDispute(orderId, note);
+  }
+
+  @Get('stats')
+  getStats() {
+    return this.adminService.getStats();
+  }
+
+  // ===================== DÀNH CHO QUẢN LÝ RÚT TIỀN =====================
+  @Get('withdrawals')
+  getWithdrawals() {
+    return this.walletsService.getWithdrawRequests();
+  }
+
+  @Patch('withdrawals/:id/approve')
+  approveWithdraw(
+    @Param('id') id: string,
+    @Body('note') note?: string,
+  ) {
+    return this.walletsService.approveWithdraw(id, note);
+  }
+
+  @Patch('withdrawals/:id/reject')
+  rejectWithdraw(
+    @Param('id') id: string,
+    @Body('note') note?: string,
+  ) {
+    return this.walletsService.rejectWithdraw(id, note);
   }
 }

@@ -36,6 +36,7 @@ export class AdminService {
         name: true,
         shopName: true,
         idNumber: true,
+        idImages: true,
         warehouseAddress: true,
         bankAccount: true,
         phone: true,
@@ -143,5 +144,40 @@ export class AdminService {
       where: { id: reportId },
       data: { status }
     });
+  }
+
+  async getDisputes() {
+    return this.prisma.order.findMany({
+      where: { status: 'DISPUTED' },
+      include: {
+        buyer: { select: { id: true, name: true, email: true, phone: true } },
+        seller: { select: { id: true, name: true, email: true, phone: true } },
+        auction: { include: { product: true } },
+        refundRequests: { orderBy: { createdAt: 'desc' } },
+        payment: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async getStats() {
+    const totalUsers = await this.prisma.user.count();
+    const activeListings = await this.prisma.auction.count({ where: { status: 'ACTIVE' } });
+    const pendingReports = await this.prisma.report.count({ where: { status: 'PENDING' } });
+    const pendingKYC = await this.prisma.user.count({ where: { sellerVerificationStatus: 'PENDING' } });
+
+    const feeTransactions = await this.prisma.walletTransaction.findMany({
+      where: { type: 'FEE' },
+      select: { amount: true },
+    });
+    const totalPlatformFee = feeTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+
+    return {
+      totalUsers,
+      activeListings,
+      pendingReports,
+      pendingKYC,
+      totalPlatformFee,
+    };
   }
 }
