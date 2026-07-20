@@ -280,6 +280,10 @@ export class ProductsService {
         where: { auctionId: auction.id },
       });
 
+      await prisma.order.deleteMany({
+        where: { auctionId: auction.id, status: 'PENDING' },
+      });
+
       await prisma.auction.update({
         where: { id: auction.id },
         data: {
