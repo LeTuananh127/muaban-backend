@@ -11,7 +11,14 @@ export class FavoritesService {
       include: {
         auction: {
           include: {
-            product: true,
+            product: {
+              include: {
+                category: true,
+                owner: { select: { id: true, name: true, avatar: true, rating: true } },
+              },
+            },
+            bids: true,
+            _count: { select: { bids: true } },
           },
         },
       },
