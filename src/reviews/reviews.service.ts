@@ -144,6 +144,21 @@ export class ReviewsService {
       where: { reviewerId: userId },
       include: {
         reviewee: { select: { id: true, name: true, avatar: true } },
+        order: {
+          include: {
+            auction: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    title: true,
+                    images: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
