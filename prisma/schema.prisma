@@ -185,6 +185,7 @@ model Auction {
   buyNowPrice     Float?        // Giá mua ngay
   shippingCost    Float?        // Phí vận chuyển
   bidIncrement    Float         @default(10000)
+  minTrustScore   Int?          @default(0) // Điểm uy tín người mua tối thiểu (VD: 0, 50, 70, 80, 90)
   currentWinnerId String?
   startTime       DateTime      @default(now())
   endTime         DateTime

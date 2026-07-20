@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -13,7 +13,7 @@ export class AuctionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createAuctionDto: CreateAuctionDto, userId: string) {
-    const { productId, startingPrice, bidIncrement, startTime, endTime } = createAuctionDto;
+    const { productId, startingPrice, bidIncrement, startTime, endTime, minTrustScore } = createAuctionDto;
 
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
@@ -39,6 +39,7 @@ export class AuctionsService {
           startingPrice,
           currentPrice: startingPrice,
           bidIncrement: bidIncrement || 10000,
+          minTrustScore: minTrustScore || 0,
           startTime: start,
           endTime: end,
           status: new Date() >= start ? 'ACTIVE' : 'UPCOMING',

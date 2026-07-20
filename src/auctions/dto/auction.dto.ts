@@ -21,4 +21,8 @@ export class CreateAuctionDto {
   @IsDateString()
   @IsNotEmpty()
   endTime: string;
+
+  @IsNumber()
+  @IsOptional()
+  minTrustScore?: number;
 }

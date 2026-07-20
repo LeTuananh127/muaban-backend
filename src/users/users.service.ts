@@ -31,7 +31,34 @@ export class UsersService {
       },
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+
+    const reviews = await this.prisma.review.findMany({
+      where: { revieweeId: id },
+      include: { order: true },
+    });
+
+    const sellerReviews = reviews.filter((r) => r.order && r.order.sellerId === id);
+    const buyerReviews = reviews.filter((r) => r.order && r.order.buyerId === id);
+
+    const sellerRating = sellerReviews.length > 0
+      ? sellerReviews.reduce((sum, r) => sum + r.rating, 0) / sellerReviews.length
+      : (user.rating || 5.0);
+    const sellerTrustScore = Math.min(100, Math.round(sellerRating * 20));
+
+    const buyerRating = buyerReviews.length > 0
+      ? buyerReviews.reduce((sum, r) => sum + r.rating, 0) / buyerReviews.length
+      : 5.0;
+    const buyerTrustScore = Math.min(100, Math.round(buyerRating * 20));
+
+    return {
+      ...user,
+      sellerRating,
+      sellerReviewsCount: sellerReviews.length,
+      sellerTrustScore,
+      buyerRating,
+      buyerReviewsCount: buyerReviews.length,
+      buyerTrustScore,
+    };
   }
 
   async updateProfile(id: string, data: { name?: string; avatar?: string }) {

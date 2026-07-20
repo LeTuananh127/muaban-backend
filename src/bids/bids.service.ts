@@ -29,6 +29,24 @@ export class BidsService {
       throw new BadRequestException(`Auction is ${auction.status.toLowerCase()}`);
     }
 
+    if (auction.minTrustScore && auction.minTrustScore > 0) {
+      const buyerReviews = await this.prisma.review.findMany({
+        where: { revieweeId: userId },
+        include: { order: true },
+      });
+      const receivedBuyerReviews = buyerReviews.filter((r) => r.order && r.order.buyerId === userId);
+      const buyerRating = receivedBuyerReviews.length > 0
+        ? receivedBuyerReviews.reduce((sum, r) => sum + r.rating, 0) / receivedBuyerReviews.length
+        : 5.0;
+      const buyerTrustScore = Math.min(100, Math.round(buyerRating * 20));
+
+      if (buyerTrustScore < auction.minTrustScore) {
+        throw new BadRequestException(
+          `Rất tiếc! Phiên đấu giá này yêu cầu Người mua có Điểm uy tín tối thiểu từ ${auction.minTrustScore}/100 điểm trở lên (Điểm uy tín người mua của bạn: ${buyerTrustScore}/100 điểm).`
+        );
+      }
+    }
+
     const now = new Date();
     if (now > auction.endTime) {
       // Trigger status update if needed
