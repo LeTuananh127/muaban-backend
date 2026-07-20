@@ -52,7 +52,7 @@ export class AiService {
       const categoriesStr = categories.map((c) => c.name).join(', ');
       const auctionsStr = activeAuctions
         .map((a) => {
-          return `- **${a.product.title}** (Danh mục: ${a.product.category.name}): Giá hiện tại ${a.startingPrice.toLocaleString('vi-VN')}đ, Kết thúc lúc: ${a.endTime.toLocaleString('vi-VN')}. Đường dẫn: /auction/${a.id}`;
+          return `- [${a.product.title}](/auction/${a.id}) (Danh mục: ${a.product.category.name}): Giá hiện tại ${a.startingPrice.toLocaleString('vi-VN')}đ, Kết thúc lúc: ${a.endTime.toLocaleString('vi-VN')}`;
         })
         .join('\n');
 
