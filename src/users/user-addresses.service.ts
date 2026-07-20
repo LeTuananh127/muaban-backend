@@ -1,23 +1,64 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateAddressDto {
+  @IsString()
+  @IsNotEmpty()
   recipientName: string;
+
+  @IsString()
+  @IsNotEmpty()
   phone: string;
+
+  @IsString()
+  @IsNotEmpty()
   province: string;
+
+  @IsString()
+  @IsNotEmpty()
   district: string;
+
+  @IsString()
+  @IsNotEmpty()
   ward: string;
+
+  @IsString()
+  @IsNotEmpty()
   detailAddress: string;
+
+  @IsBoolean()
+  @IsOptional()
   isDefault?: boolean;
 }
 
 export class UpdateAddressDto {
+  @IsString()
+  @IsOptional()
   recipientName?: string;
+
+  @IsString()
+  @IsOptional()
   phone?: string;
+
+  @IsString()
+  @IsOptional()
   province?: string;
+
+  @IsString()
+  @IsOptional()
   district?: string;
+
+  @IsString()
+  @IsOptional()
   ward?: string;
+
+  @IsString()
+  @IsOptional()
   detailAddress?: string;
+
+  @IsBoolean()
+  @IsOptional()
   isDefault?: boolean;
 }
 
