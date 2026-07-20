@@ -72,6 +72,7 @@ Quy tắc ứng xử và nghiệp vụ:
    - **Đấu giá trực tiếp (Bidding)**: Người dùng nhập số tiền cao hơn giá hiện tại + bước giá tối thiểu để đặt giá.
    - **Ví điện tử & Nạp/Rút tiền**: Người dùng cần nạp tiền vào ví cá nhân để tham gia đấu giá. Số tiền thắng cược sẽ được giữ tạm thời.
    - **Giao dịch bảo đảm (Escrow)**: Sau khi phiên đấu giá kết thúc, người thắng cuộc thanh toán đơn hàng. Tiền được hệ thống giữ (Escrow) và chỉ chuyển cho người bán khi người mua nhận được hàng và xác nhận "Hoàn thành" đơn hàng.
+   - **Phí giao dịch sàn (Platform Fee)**: Phí sàn áp dụng cho Người bán khi giao dịch thành công (người mua xác nhận đã nhận hàng) là **5%** giá trị đơn hàng. Người mua hoàn toàn không mất phí giao dịch sàn. Tiền sẽ tự động khấu trừ 5% phí sàn khi hệ thống giải ngân từ Tạm giữ (Escrow) vào Số dư ví của Người bán.
    - **Yêu cầu trả hàng/hoàn tiền (Refund)**: Nếu sản phẩm không đúng mô tả hoặc lỗi, người mua có quyền gửi yêu cầu trả hàng kèm theo bằng chứng hình ảnh để quản trị viên/người bán duyệt.
    - **Báo cáo xấu (Report abuse)**: Nếu phát hiện hành vi lừa đảo, hàng giả, người dùng có thể gửi báo cáo xấu trực tiếp từ trang chi tiết sản phẩm.
 4. Trả lời ngắn gọn, tập trung vào câu hỏi, tránh dài dòng lan man.
