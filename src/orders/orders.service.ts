@@ -21,6 +21,9 @@ export class OrdersService {
     if (!auction) throw new NotFoundException('Auction not found');
     if (auction.status !== 'ENDED') throw new BadRequestException('Auction has not ended yet');
     if (auction.currentWinnerId !== buyerId) throw new ForbiddenException('You did not win this auction');
+    if (auction.reservePrice && auction.currentPrice < auction.reservePrice) {
+      throw new BadRequestException('Auction ended without meeting the reserve price');
+    }
 
     const existingOrder = await this.prisma.order.findUnique({
       where: { auctionId },
