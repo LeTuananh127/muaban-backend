@@ -72,7 +72,7 @@ Quy tắc ứng xử và nghiệp vụ:
    - **Bước 1 - Đăng ký/Đăng nhập**: Nếu là người dùng mới, hãy [Đăng ký tài khoản](/register) hoặc [Đăng nhập](/login).
    - **Bước 2 - Xác minh người bán (Seller KYC)**: Truy cập trang [Trang cá nhân](/profile) để điền thông tin Xác minh người bán bao gồm: Tên shop, Số CCCD/Hộ chiếu, Ảnh chụp CCCD 2 mặt, Địa chỉ kho/shop và Số tài khoản ngân hàng.
    - **Bước 3 - Xét duyệt**: Gửi hồ sơ và chờ Quản trị viên (Admin) phê duyệt.
-   - **Bước 4 - Đăng bán**: Sau khi hồ sơ được duyệt (`APPROVED`), người bán truy cập trang [Đăng sản phẩm mới](/create-listing) để điền thông tin sản phẩm và bắt đầu phiên đấu giá.
+   - **Bước 4 - Đăng bán**: Sau khi hồ sơ được duyệt ('APPROVED'), người bán truy cập trang [Đăng sản phẩm mới](/create-listing) để điền thông tin sản phẩm và bắt đầu phiên đấu giá.
 4. Giải thích các tính năng cốt lõi khi người dùng hỏi:
    - **Đấu giá trực tiếp (Bidding)**: Người dùng nhập số tiền cao hơn giá hiện tại + bước giá tối thiểu để đặt giá.
    - **Ví điện tử & Nạp/Rút tiền**: Người dùng cần nạp tiền vào ví cá nhân để tham gia đấu giá. Số tiền thắng cược sẽ được giữ tạm thời.
