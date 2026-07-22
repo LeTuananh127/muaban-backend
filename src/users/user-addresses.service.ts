@@ -210,13 +210,16 @@ export class UserAddressesService {
       create: { phone: address.phone, otp, expiresAt },
     });
 
-    // Send real SMS OTP via Twilio
-    await this.smsService.sendSmsOtp(address.phone, otp);
+    // Send real SMS OTP via SpeedSMS / Twilio
+    const sent = await this.smsService.sendSmsOtp(address.phone, otp);
+    if (!sent && process.env.SHOW_TEST_OTP !== 'true') {
+      throw new BadRequestException('Không thể gửi tin nhắn SMS tới số điện thoại này. Vui lòng kiểm tra lại cổng SMS!');
+    }
 
-    console.log(`[SMS OTP SENT] Phone: ${address.phone}, OTP: ${otp}`);
+    console.log(`[SMS OTP SENT] Phone: ${address.phone}, OTP: ${otp}, SentStatus: ${sent}`);
 
     return {
-      message: 'Mã OTP xác thực đã được gửi tới số điện thoại của bạn!',
+      message: sent ? 'Mã OTP xác thực đã được gửi tới số điện thoại của bạn!' : 'Mã OTP xác thực (Chế độ thử nghiệm)',
       otp: process.env.SHOW_TEST_OTP === 'true' ? otp : undefined,
     };
   }

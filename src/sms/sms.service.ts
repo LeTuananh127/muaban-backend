@@ -26,6 +26,7 @@ export class SmsService {
 
     // 1. Ưu tiên gửi qua SpeedSMS.vn nếu có SPEEDSMS_ACCESS_TOKEN
     const speedSmsToken = process.env.SPEEDSMS_ACCESS_TOKEN || '0roKgxr7lx8gm6ZkVfkQOxiZ-BZ9TOhf';
+    const speedSmsSender = process.env.SPEEDSMS_SENDER || '';
     if (speedSmsToken) {
       try {
         const rawPhone = phone.replace(/\D/g, '');
@@ -40,7 +41,7 @@ export class SmsService {
             to: [rawPhone],
             content: body,
             sms_type: 2,
-            sender: '',
+            sender: speedSmsSender,
           }),
         });
 
