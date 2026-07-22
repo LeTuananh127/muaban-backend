@@ -22,11 +22,13 @@ import { WalletsModule } from './wallets/wallets.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AiModule } from './ai/ai.module';
 import { MailModule } from './mail/mail.module';
+import { SmsModule } from './sms/sms.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     MailModule,
+    SmsModule,
     PrismaModule,
     UsersModule,
     ProductsModule,

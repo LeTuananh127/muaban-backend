@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { SmsService } from '../sms/sms.service';
 import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateAddressDto {
@@ -68,6 +69,7 @@ export class UserAddressesService {
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
+    private smsService: SmsService,
   ) {}
 
   async getAddresses(userId: string) {
@@ -208,16 +210,17 @@ export class UserAddressesService {
       create: { phone: address.phone, otp, expiresAt },
     });
 
-    // Send real email OTP to the user's registered email
+    // Send real email OTP & Twilio SMS OTP
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (user?.email) {
       await this.mailService.sendPhoneOtpEmail(user.email, user.name || 'bạn', address.phone, otp);
     }
+    await this.smsService.sendSmsOtp(address.phone, otp);
 
     console.log(`[REAL OTP SENT] Phone: ${address.phone}, Email: ${user?.email}, OTP: ${otp}`);
 
     return {
-      message: 'Mã OTP xác thực đã được gửi tới email registered của bạn!',
+      message: 'Mã OTP xác thực đã được gửi tới số điện thoại và email của bạn!',
       otp: process.env.SHOW_TEST_OTP === 'true' ? otp : undefined,
     };
   }
