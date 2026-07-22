@@ -232,11 +232,15 @@ export class UserAddressesService {
       throw new BadRequestException('Mã OTP đã hết hạn');
     }
 
-    // Mark as verified and delete OTP
+    // Mark address as verified, set user phone, and delete OTP
     await this.prisma.$transaction([
       this.prisma.userAddress.update({
         where: { id: addressId },
         data: { phoneVerified: true },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { phone: address.phone },
       }),
       this.prisma.otpVerification.delete({
         where: { id: verification.id },

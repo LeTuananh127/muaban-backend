@@ -2,6 +2,7 @@ import { Controller, Post, Body, Param, UseGuards, Request, Get } from '@nestjs/
 import { BidsService } from './bids.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { RateLimitGuard } from '../common/guards/rate-limit.guard';
 
 @Controller('bids')
 export class BidsController {
@@ -12,7 +13,7 @@ export class BidsController {
     return this.bidsService.getBidsByAuction(auctionId);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
   @Post(':auctionId')
   placeBid(
     @Request() req,
@@ -22,7 +23,7 @@ export class BidsController {
     return this.bidsService.placeBid(req.user.userId, auctionId, amount);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
   @Post(':auctionId/auto-bid')
   setAutoBid(
     @Request() req,

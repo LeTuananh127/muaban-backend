@@ -12,12 +12,15 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 
+import { MailService } from '../mail/mail.service';
+
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
     private prisma: PrismaService,
+    private mailService: MailService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -47,6 +50,11 @@ export class AuthService {
         token: verificationToken,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
+    });
+
+    // Send real verification email via SMTP/Mailer
+    this.mailService.sendVerificationEmail(email, name, verificationToken).catch((err) => {
+      console.error('Failed to send verification email:', err);
     });
 
     const { password: _, ...result } = createdUser;

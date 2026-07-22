@@ -21,10 +21,12 @@ import { EscrowModule } from './escrow/escrow.module';
 import { WalletsModule } from './wallets/wallets.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AiModule } from './ai/ai.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    MailModule,
     PrismaModule,
     UsersModule,
     ProductsModule,

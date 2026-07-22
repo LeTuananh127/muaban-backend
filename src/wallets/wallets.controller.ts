@@ -59,4 +59,15 @@ export class WalletsController {
       accountName,
     );
   }
+
+  @Post('vnpay/create-url')
+  createVnpayUrl(@Request() req, @Body('amount') amount: number) {
+    const ipAddr = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
+    return this.walletsService.createVnpayPaymentUrl(req.user.userId, amount, ipAddr);
+  }
+
+  @Post('vnpay/verify-return')
+  verifyVnpayReturn(@Request() req, @Body() vnpParams: Record<string, any>) {
+    return this.walletsService.verifyVnpayCallback(req.user.userId, vnpParams);
+  }
 }

@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { BidsGateway } from './bids.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class BidsService {
@@ -9,6 +10,7 @@ export class BidsService {
     private readonly prisma: PrismaService,
     private readonly bidsGateway: BidsGateway,
     private readonly notificationsService: NotificationsService,
+    private readonly mailService: MailService,
   ) {}
 
   async placeBid(userId: string, auctionId: string, amount: number) {
@@ -183,6 +185,20 @@ export class BidsService {
               type: 'OUTBID',
               referenceId: auctionId,
             });
+
+            const outbidUser = await this.prisma.user.findUnique({
+              where: { id: auction.currentWinnerId },
+              select: { email: true, name: true },
+            });
+            if (outbidUser) {
+              this.mailService.sendOutbidNotification(
+                outbidUser.email,
+                outbidUser.name,
+                auction.product.title,
+                amount,
+                auctionId,
+              ).catch((e) => console.error('Outbid email error:', e));
+            }
           }
         }
       } catch (err) {
