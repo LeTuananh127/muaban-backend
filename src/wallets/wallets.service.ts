@@ -252,7 +252,7 @@ export function buildVnpayUrl(params: {
   returnUrl: string;
 }): string {
   const vnpUrl = process.env.VNPAY_URL || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
-  const secretKey = process.env.VNPAY_HASH_SECRET || '29IC3NJ8810TYCBXON2FR4G26YHSZV8C';
+  const secretKey = process.env.VNPAY_HASH_SECRET || 'CMCSC78B77PDFGURQEDRFANABUTE3ERX';
   const tmnCode = process.env.VNPAY_TMN_CODE || 'AWCK4IQI';
 
   const date = new Date();
@@ -288,7 +288,7 @@ export function buildVnpayUrl(params: {
 }
 
 export function verifyVnpaySignature(vnpParams: Record<string, any>): boolean {
-  const secretKey = process.env.VNPAY_HASH_SECRET || '29IC3NJ8810TYCBXON2FR4G26YHSZV8C';
+  const secretKey = process.env.VNPAY_HASH_SECRET || 'CMCSC78B77PDFGURQEDRFANABUTE3ERX';
   const secureHash = vnpParams['vnp_SecureHash'];
 
   const cloneParams = { ...vnpParams };
