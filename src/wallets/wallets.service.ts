@@ -183,7 +183,7 @@ export class WalletsService {
     const txnRef = `vnp_${userId.substring(0, 6)}_${Date.now()}`;
     const frontendUrl = process.env.FRONTEND_URL || 'https://muabandocuui.vercel.app';
     const returnUrl = `${frontendUrl}/wallet?vnpay=return`;
-    const orderInfo = `Nap tien vi AuctionHub ${amount.toLocaleString('vi-VN')}d`;
+    const orderInfo = `Nap tien vi AuctionHub ${amount} VND`;
 
     const paymentUrl = buildVnpayUrl({
       amount,
@@ -235,17 +235,11 @@ function formatVnpDate(date: Date): string {
 
 function sortObject(obj: any): any {
   const sorted: any = {};
-  const str: string[] = [];
-  for (const key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      if (obj[key] !== null && obj[key] !== undefined && obj[key] !== '') {
-        str.push(encodeURIComponent(key));
-      }
+  const keys = Object.keys(obj).sort();
+  for (const key of keys) {
+    if (obj[key] !== null && obj[key] !== undefined && obj[key] !== '') {
+      sorted[key] = encodeURIComponent(String(obj[key])).replace(/%20/g, '+');
     }
-  }
-  str.sort();
-  for (let i = 0; i < str.length; i++) {
-    sorted[str[i]] = encodeURIComponent(obj[str[i]]).replace(/%20/g, '+');
   }
   return sorted;
 }
