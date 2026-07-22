@@ -24,30 +24,29 @@ export class SmsService {
     const formattedPhone = this.formatPhone(phone);
     const body = `[AuctionHub] Ma OTP xac thuc so dien thoai cua ban la: ${otp}. Ma co hieu luc trong 5 phut.`;
 
-    // 1. Ưu tiên gửi qua SpeedSMS.vn nếu có SPEEDSMS_ACCESS_TOKEN
+    // 1. Ưu tiên gửi qua SpeedSMS.vn 2FA API
     const speedSmsToken = process.env.SPEEDSMS_ACCESS_TOKEN || '0roKgxr7lx8gm6ZkVfkQOxiZ-BZ9TOhf';
-    const speedSmsSender = process.env.SPEEDSMS_SENDER || '';
-    if (speedSmsToken) {
+    const speedSmsAppId = process.env.SPEEDSMS_APP_ID || 'sM3M-XXxWl7AnmFB6yMHDYHtrrKgEfKv';
+    if (speedSmsToken && speedSmsAppId) {
       try {
         const rawPhone = phone.replace(/\D/g, '');
         const authHeader = 'Basic ' + Buffer.from(`${speedSmsToken}:x`).toString('base64');
-        const res = await fetch('https://api.speedsms.vn/index.php/sms/send', {
+        const res = await fetch('https://api.speedsms.vn/index.php/pin/create', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': authHeader,
           },
           body: JSON.stringify({
-            to: [rawPhone],
-            content: body,
-            sms_type: 2,
-            sender: speedSmsSender,
+            to: rawPhone,
+            content: `Ma so xac nhan cua ban la: ${otp}`,
+            app_id: speedSmsAppId,
           }),
         });
 
         const data: any = await res.json();
-        if (data && data.status === 'success') {
-          this.logger.log(`SpeedSMS OTP sent successfully to ${rawPhone}`);
+        if (data && (data.status === 'success' || data.code === '00')) {
+          this.logger.log(`SpeedSMS 2FA OTP sent successfully to ${rawPhone}`);
           return true;
         } else {
           this.logger.warn(`SpeedSMS response warning: ${JSON.stringify(data)}`);
