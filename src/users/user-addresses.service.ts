@@ -210,16 +210,13 @@ export class UserAddressesService {
       create: { phone: address.phone, otp, expiresAt },
     });
 
-    // Send email OTP as fallback (Firebase handles SMS OTP on the frontend)
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (user?.email) {
-      await this.mailService.sendPhoneOtpEmail(user.email, user.name || 'bạn', address.phone, otp);
-    }
+    // Send real SMS OTP via Twilio
+    await this.smsService.sendSmsOtp(address.phone, otp);
 
-    console.log(`[OTP SENT] Phone: ${address.phone}, Email: ${user?.email}, OTP: ${otp}`);
+    console.log(`[SMS OTP SENT] Phone: ${address.phone}, OTP: ${otp}`);
 
     return {
-      message: 'Mã OTP xác thực đã được gửi về email của bạn!',
+      message: 'Mã OTP xác thực đã được gửi tới số điện thoại của bạn!',
       otp: process.env.SHOW_TEST_OTP === 'true' ? otp : undefined,
     };
   }
