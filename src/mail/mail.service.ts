@@ -99,4 +99,22 @@ export class MailService {
     `;
     return this.sendMail(toEmail, subject, html);
   }
+
+  async sendPhoneOtpEmail(toEmail: string, userName: string, phone: string, otp: string) {
+    const subject = `📱 [AuctionHub] Mã OTP xác thực số điện thoại: ${otp}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
+        <h2 style="color: #7c3aed; text-align: center; margin-bottom: 20px;">Mã xác thực số điện thoại</h2>
+        <p>Xin chào <strong>${userName}</strong>,</p>
+        <p>Bạn vừa yêu cầu gửi mã xác thực OTP để xác minh số điện thoại <strong>${phone}</strong> tại tài khoản AuctionHub.</p>
+        <div style="text-align: center; margin: 25px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #7c3aed; background: #f3e8ff; padding: 12px 24px; border-radius: 8px; font-family: monospace; display: inline-block;">${otp}</span>
+        </div>
+        <p style="color: #666; font-size: 13px; text-align: center;">Mã OTP có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #999; text-align: center;">AuctionHub - Sàn Đấu Giá Trực Tuyến Hàng Đầu</p>
+      </div>
+    `;
+    return this.sendMail(toEmail, subject, html);
+  }
 }

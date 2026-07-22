@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateAddressDto {
@@ -64,7 +65,10 @@ export class UpdateAddressDto {
 
 @Injectable()
 export class UserAddressesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mailService: MailService,
+  ) {}
 
   async getAddresses(userId: string) {
     return this.prisma.userAddress.findMany({
@@ -204,12 +208,17 @@ export class UserAddressesService {
       create: { phone: address.phone, otp, expiresAt },
     });
 
-    // In demo environment, we print and return the OTP directly for ease of use
-    console.log(`[DEMO OTP] Phone: ${address.phone}, OTP: ${otp}`);
+    // Send real email OTP to the user's registered email
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user?.email) {
+      await this.mailService.sendPhoneOtpEmail(user.email, user.name || 'bạn', address.phone, otp);
+    }
+
+    console.log(`[REAL OTP SENT] Phone: ${address.phone}, Email: ${user?.email}, OTP: ${otp}`);
 
     return {
-      message: 'Mã OTP xác thực đã được gửi thành công!',
-      otp,
+      message: 'Mã OTP xác thực đã được gửi tới email registered của bạn!',
+      otp: process.env.SHOW_TEST_OTP === 'true' ? otp : undefined,
     };
   }
 
