@@ -235,11 +235,17 @@ function formatVnpDate(date: Date): string {
 
 function sortObject(obj: any): any {
   const sorted: any = {};
-  const keys = Object.keys(obj).sort();
-  for (const key of keys) {
-    if (obj[key] !== null && obj[key] !== undefined && obj[key] !== '') {
-      sorted[key] = obj[key];
+  const str: string[] = [];
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      if (obj[key] !== null && obj[key] !== undefined && obj[key] !== '') {
+        str.push(encodeURIComponent(key));
+      }
     }
+  }
+  str.sort();
+  for (let i = 0; i < str.length; i++) {
+    sorted[str[i]] = encodeURIComponent(obj[str[i]]).replace(/%20/g, '+');
   }
   return sorted;
 }
@@ -258,7 +264,7 @@ export function buildVnpayUrl(params: {
   const date = new Date();
   const createDate = formatVnpDate(date);
 
-  let vnpParams: Record<string, string | number> = {
+  const vnpParams: Record<string, string | number> = {
     vnp_Version: '2.1.0',
     vnp_Command: 'pay',
     vnp_TmnCode: tmnCode,
@@ -273,19 +279,16 @@ export function buildVnpayUrl(params: {
     vnp_CreateDate: createDate,
   };
 
-  vnpParams = sortObject(vnpParams);
+  const sortedParams = sortObject(vnpParams);
 
-  const signData = Object.keys(vnpParams)
-    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(String(vnpParams[key])).replace(/%20/g, '+')}`)
+  const signData = Object.keys(sortedParams)
+    .map((key) => `${key}=${sortedParams[key]}`)
     .join('&');
 
   const hmac = crypto.createHmac('sha512', secretKey);
   const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
-  vnpParams['vnp_SecureHash'] = signed;
 
-  const queryString = Object.keys(vnpParams)
-    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(String(vnpParams[key])).replace(/%20/g, '+')}`)
-    .join('&');
+  const queryString = `${signData}&vnp_SecureHash=${signed}`;
 
   return `${vnpUrl}?${queryString}`;
 }
@@ -294,12 +297,13 @@ export function verifyVnpaySignature(vnpParams: Record<string, any>): boolean {
   const secretKey = process.env.VNPAY_HASH_SECRET || '29IC3NJ8810TYCBXON2FR4G26YHSZV8C';
   const secureHash = vnpParams['vnp_SecureHash'];
 
-  delete vnpParams['vnp_SecureHash'];
-  delete vnpParams['vnp_SecureHashType'];
+  const cloneParams = { ...vnpParams };
+  delete cloneParams['vnp_SecureHash'];
+  delete cloneParams['vnp_SecureHashType'];
 
-  const sortedParams = sortObject(vnpParams);
+  const sortedParams = sortObject(cloneParams);
   const signData = Object.keys(sortedParams)
-    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(String(sortedParams[key])).replace(/%20/g, '+')}`)
+    .map((key) => `${key}=${sortedParams[key]}`)
     .join('&');
 
   const hmac = crypto.createHmac('sha512', secretKey);
