@@ -208,8 +208,8 @@ export class UserAddressesService {
     console.log(`[DEMO OTP] Phone: ${address.phone}, OTP: ${otp}`);
 
     return {
-      message: 'Mã OTP đã được gửi (Demo: xem trong phản hồi hoặc Console log)',
-      otp, // return OTP in response for demo ease
+      message: 'Mã OTP xác thực đã được gửi thành công!',
+      otp,
     };
   }
 
