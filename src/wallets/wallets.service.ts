@@ -291,9 +291,12 @@ export function verifyVnpaySignature(vnpParams: Record<string, any>): boolean {
   const secretKey = process.env.VNPAY_HASH_SECRET || 'CMCSC78B77PDFGURQEDRFANABUTE3ERX';
   const secureHash = vnpParams['vnp_SecureHash'];
 
-  const cloneParams = { ...vnpParams };
-  delete cloneParams['vnp_SecureHash'];
-  delete cloneParams['vnp_SecureHashType'];
+  const cloneParams: Record<string, any> = {};
+  for (const key of Object.keys(vnpParams)) {
+    if (key.startsWith('vnp_') && key !== 'vnp_SecureHash' && key !== 'vnp_SecureHashType') {
+      cloneParams[key] = vnpParams[key];
+    }
+  }
 
   const sortedParams = sortObject(cloneParams);
   const signData = Object.keys(sortedParams)
@@ -303,5 +306,5 @@ export function verifyVnpaySignature(vnpParams: Record<string, any>): boolean {
   const hmac = crypto.createHmac('sha512', secretKey);
   const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
 
-  return secureHash === signed;
+  return secureHash?.toLowerCase() === signed?.toLowerCase();
 }
