@@ -13,12 +13,19 @@ export class MailService {
     const pass = process.env.SMTP_PASS || 'ycidtukrduwjcbbh';
 
     if (user && pass) {
-      this.transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
-        auth: { user, pass },
-      });
+      if (host === 'smtp.gmail.com') {
+        this.transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user, pass },
+        });
+      } else {
+        this.transporter = nodemailer.createTransport({
+          host,
+          port,
+          secure: port === 465,
+          auth: { user, pass },
+        });
+      }
       this.logger.log(`SMTP Mailer initialized with user: ${user}`);
     } else {
       this.logger.warn('SMTP credentials (SMTP_USER / SMTP_PASS) not provided. Email notifications will be logged to console.');
