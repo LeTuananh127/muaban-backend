@@ -9,8 +9,8 @@ export class MailService {
   constructor() {
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
+    const user = process.env.SMTP_USER || 'letuananh1207204@gmail.com';
+    const pass = process.env.SMTP_PASS || 'ycidtukrduwjcbbh';
 
     if (user && pass) {
       this.transporter = nodemailer.createTransport({
@@ -26,7 +26,7 @@ export class MailService {
   }
 
   private async sendMail(to: string, subject: string, html: string) {
-    const from = process.env.SMTP_FROM || '"AuctionHub" <noreply@auctionhub.vn>';
+    const from = process.env.SMTP_FROM || '"AuctionHub" <letuananh1207204@gmail.com>';
     if (this.transporter) {
       try {
         const info = await this.transporter.sendMail({ from, to, subject, html });
