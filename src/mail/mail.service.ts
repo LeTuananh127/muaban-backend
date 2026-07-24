@@ -19,10 +19,16 @@ export class MailService {
 
     try {
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: { user, pass },
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 15000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
       });
-      this.logger.log(`SMTP Mailer initialized with user: ${user}`);
+      this.logger.log(`SMTP Mailer initialized with user: ${user} (Port 465 Direct SSL)`);
     } catch (err) {
       this.logger.error('Failed to initialize nodemailer transporter', err);
     }
@@ -33,8 +39,11 @@ export class MailService {
 
     if (!this.transporter) {
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: { user: 'letuananh1207204@gmail.com', pass: 'ycidtukrduwjcbbh' },
+        tls: { rejectUnauthorized: false },
       });
     }
 
@@ -43,11 +52,14 @@ export class MailService {
       this.logger.log(`Email sent to ${to}: ${info.messageId}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send email to ${to}, attempting fallback transport...`, error);
+      this.logger.error(`Primary Port 465 send failed for ${to}, retrying fallback...`, error);
       try {
         const fallbackTransporter = nodemailer.createTransport({
-          service: 'gmail',
+          host: 'smtp.gmail.com',
+          port: 465,
+          secure: true,
           auth: { user: 'letuananh1207204@gmail.com', pass: 'ycidtukrduwjcbbh' },
+          tls: { rejectUnauthorized: false },
         });
         const info = await fallbackTransporter.sendMail({ from, to, subject, html });
         this.logger.log(`Fallback email sent to ${to}: ${info.messageId}`);
