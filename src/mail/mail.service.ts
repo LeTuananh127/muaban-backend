@@ -29,7 +29,7 @@ export class MailService {
 
   private async sendMail(to: string, subject: string, html: string) {
     // 1. Ưu tiên gửi qua Resend HTTP REST API (Cổng 443 HTTPS - Không bao giờ bị Render chặn)
-    const resendKey = process.env.RESEND_API_KEY;
+    const resendKey = process.env.RESEND_API_KEY || 're_WVwT2qHb_J9J6ojTKB5sSUfawKAZoVK9T';
     if (resendKey) {
       try {
         const res = await fetch('https://api.resend.com/emails', {
