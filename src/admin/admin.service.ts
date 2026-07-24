@@ -68,9 +68,16 @@ export class AdminService {
   async getAllListings() {
     return this.prisma.auction.findMany({
       include: {
-        product: { include: { owner: { select: { name: true, email: true } } } }
+        product: {
+          include: {
+            owner: { select: { id: true, name: true, email: true } },
+            category: { select: { id: true, name: true } },
+          },
+        },
+        winner: { select: { id: true, name: true, email: true } },
+        _count: { select: { bids: true } },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
