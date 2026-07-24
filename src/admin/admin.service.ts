@@ -187,4 +187,121 @@ export class AdminService {
       totalPlatformFee,
     };
   }
+
+  // ===================== THỐNG KÊ BIỂU ĐỒ =====================
+  async getAnalytics(period: 'day' | 'month' | 'year' = 'month') {
+    // Xác định khoảng thời gian cần lấy
+    const now = new Date();
+    let startDate: Date;
+    let points: number;
+
+    if (period === 'day') {
+      // 30 ngày gần nhất
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 29);
+      startDate.setHours(0, 0, 0, 0);
+      points = 30;
+    } else if (period === 'month') {
+      // 12 tháng gần nhất
+      startDate = new Date(now);
+      startDate.setMonth(startDate.getMonth() - 11);
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+      points = 12;
+    } else {
+      // 5 năm gần nhất
+      startDate = new Date(now);
+      startDate.setFullYear(startDate.getFullYear() - 4);
+      startDate.setMonth(0, 1);
+      startDate.setHours(0, 0, 0, 0);
+      points = 5;
+    }
+
+    // Hàm tạo key nhóm theo period
+    const getKey = (date: Date): string => {
+      if (period === 'day') {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      } else if (period === 'month') {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      } else {
+        return `${date.getFullYear()}`;
+      }
+    };
+
+    // Tạo tất cả labels từ startDate tới now
+    const labels: string[] = [];
+    const d = new Date(startDate);
+    for (let i = 0; i < points; i++) {
+      labels.push(getKey(d));
+      if (period === 'day') d.setDate(d.getDate() + 1);
+      else if (period === 'month') d.setMonth(d.getMonth() + 1);
+      else d.setFullYear(d.getFullYear() + 1);
+    }
+
+    // Fetch raw data song song
+    const [users, auctions, orders, payments] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+      }),
+      this.prisma.auction.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+      }),
+      this.prisma.order.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+      }),
+      this.prisma.payment.findMany({
+        where: {
+          status: 'COMPLETED',
+          createdAt: { gte: startDate },
+        },
+        select: { amount: true, createdAt: true },
+      }),
+    ]);
+
+    // Group by period key
+    const groupCount = (items: { createdAt: Date }[]) => {
+      const map: Record<string, number> = {};
+      for (const item of items) {
+        const key = getKey(new Date(item.createdAt));
+        map[key] = (map[key] ?? 0) + 1;
+      }
+      return map;
+    };
+
+    const groupRevenue = (items: { amount: number; createdAt: Date }[]) => {
+      const map: Record<string, number> = {};
+      for (const item of items) {
+        const key = getKey(new Date(item.createdAt));
+        map[key] = (map[key] ?? 0) + item.amount;
+      }
+      return map;
+    };
+
+    const userMap = groupCount(users);
+    const auctionMap = groupCount(auctions);
+    const orderMap = groupCount(orders);
+    const revenueMap = groupRevenue(payments);
+
+    // Build chart series aligned to labels
+    const series = labels.map((label) => ({
+      label,
+      newUsers: userMap[label] ?? 0,
+      newAuctions: auctionMap[label] ?? 0,
+      newOrders: orderMap[label] ?? 0,
+      revenue: revenueMap[label] ?? 0,
+    }));
+
+    // Tổng tích lũy
+    const totals = {
+      users: users.length,
+      auctions: auctions.length,
+      orders: orders.length,
+      revenue: payments.reduce((s, p) => s + p.amount, 0),
+    };
+
+    return { period, labels, series, totals };
+  }
 }

@@ -1,4 +1,5 @@
-import { Controller, Get, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
+
 import { AdminService } from './admin.service';
 import { OrdersService } from '../orders/orders.service';
 import { WalletsService } from '../wallets/wallets.service';
@@ -110,6 +111,11 @@ export class AdminController {
   @Get('stats')
   getStats() {
     return this.adminService.getStats();
+  }
+
+  @Get('analytics')
+  getAnalytics(@Query('period') period: 'day' | 'month' | 'year' = 'month') {
+    return this.adminService.getAnalytics(period);
   }
 
   // ===================== DÀNH CHO QUẢN LÝ RÚT TIỀN =====================
