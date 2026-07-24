@@ -124,4 +124,120 @@ export class UsersService {
       },
     });
   }
+
+  // ===================== THỐNG KÊ CÁ NHÂN NGƯỜI DÙNG =====================
+  async getUserAnalytics(userId: string, period: 'day' | 'month' | 'year' = 'month') {
+    const now = new Date();
+    let startDate: Date;
+    let points: number;
+
+    if (period === 'day') {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 29);
+      startDate.setHours(0, 0, 0, 0);
+      points = 30;
+    } else if (period === 'month') {
+      startDate = new Date(now);
+      startDate.setMonth(startDate.getMonth() - 11);
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+      points = 12;
+    } else {
+      startDate = new Date(now);
+      startDate.setFullYear(startDate.getFullYear() - 4);
+      startDate.setMonth(0, 1);
+      startDate.setHours(0, 0, 0, 0);
+      points = 5;
+    }
+
+    const getKey = (date: Date): string => {
+      if (period === 'day') {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      } else if (period === 'month') {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      } else {
+        return `${date.getFullYear()}`;
+      }
+    };
+
+    const labels: string[] = [];
+    const d = new Date(startDate);
+    for (let i = 0; i < points; i++) {
+      labels.push(getKey(d));
+      if (period === 'day') d.setDate(d.getDate() + 1);
+      else if (period === 'month') d.setMonth(d.getMonth() + 1);
+      else d.setFullYear(d.getFullYear() + 1);
+    }
+
+    const [sellingOrders, buyingOrders, myAuctions, myBids] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { sellerId: userId, createdAt: { gte: startDate } },
+        select: { price: true, status: true, createdAt: true },
+      }),
+      this.prisma.order.findMany({
+        where: { buyerId: userId, createdAt: { gte: startDate } },
+        select: { price: true, status: true, createdAt: true },
+      }),
+      this.prisma.auction.findMany({
+        where: { product: { ownerId: userId }, createdAt: { gte: startDate } },
+        select: { id: true, createdAt: true },
+      }),
+      this.prisma.bid.findMany({
+        where: { bidderId: userId, createdAt: { gte: startDate } },
+        select: { amount: true, createdAt: true },
+      }),
+    ]);
+
+    // Grouping
+    const salesRevMap: Record<string, number> = {};
+    const salesCountMap: Record<string, number> = {};
+    const spendMap: Record<string, number> = {};
+    const buysCountMap: Record<string, number> = {};
+    const bidsCountMap: Record<string, number> = {};
+
+    for (const order of sellingOrders) {
+      const key = getKey(new Date(order.createdAt));
+      salesCountMap[key] = (salesCountMap[key] ?? 0) + 1;
+      if (order.status === 'COMPLETED' || order.status === 'PAID' || order.status === 'DELIVERED') {
+        salesRevMap[key] = (salesRevMap[key] ?? 0) + order.price;
+      }
+    }
+
+    for (const order of buyingOrders) {
+      const key = getKey(new Date(order.createdAt));
+      buysCountMap[key] = (buysCountMap[key] ?? 0) + 1;
+      if (order.status === 'COMPLETED' || order.status === 'PAID' || order.status === 'DELIVERED') {
+        spendMap[key] = (spendMap[key] ?? 0) + order.price;
+      }
+    }
+
+    for (const bid of myBids) {
+      const key = getKey(new Date(bid.createdAt));
+      bidsCountMap[key] = (bidsCountMap[key] ?? 0) + 1;
+    }
+
+    const series = labels.map((label) => ({
+      label,
+      salesRevenue: salesRevMap[label] ?? 0,
+      salesCount: salesCountMap[label] ?? 0,
+      purchaseSpending: spendMap[label] ?? 0,
+      buysCount: buysCountMap[label] ?? 0,
+      bidsPlaced: bidsCountMap[label] ?? 0,
+    }));
+
+    const totals = {
+      salesRevenue: sellingOrders
+        .filter((o) => o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'DELIVERED')
+        .reduce((s, o) => s + o.price, 0),
+      salesCount: sellingOrders.length,
+      purchaseSpending: buyingOrders
+        .filter((o) => o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'DELIVERED')
+        .reduce((s, o) => s + o.price, 0),
+      buysCount: buyingOrders.length,
+      auctionsCreated: myAuctions.length,
+      bidsPlaced: myBids.length,
+    };
+
+    return { period, labels, series, totals };
+  }
 }

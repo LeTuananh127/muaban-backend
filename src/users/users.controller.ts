@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -10,6 +10,12 @@ export class UsersController {
   @Get('profile/my-profile')
   async getMyProfile(@Request() req) {
     return this.usersService.findById(req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('profile/my-analytics')
+  async getMyAnalytics(@Request() req, @Query('period') period: 'day' | 'month' | 'year' = 'month') {
+    return this.usersService.getUserAnalytics(req.user.userId, period);
   }
 
   @Get('profile/:id')
