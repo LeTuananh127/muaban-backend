@@ -28,6 +28,66 @@ export class MailService {
   }
 
   private async sendMail(to: string, subject: string, html: string) {
+    // 1. Ưu tiên gửi qua Resend HTTP REST API (Cổng 443 HTTPS - Không bao giờ bị Render chặn)
+    const resendKey = process.env.RESEND_API_KEY;
+    if (resendKey) {
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: 'AuctionHub <onboarding@resend.dev>',
+            to: [to],
+            subject,
+            html,
+          }),
+        });
+        const data: any = await res.json();
+        if (res.ok && data.id) {
+          this.logger.log(`[Resend HTTP API] Email sent to ${to}: ${data.id}`);
+          return true;
+        } else {
+          this.logger.warn(`[Resend HTTP API] Warning: ${JSON.stringify(data)}`);
+        }
+      } catch (err) {
+        this.logger.error('[Resend HTTP API] Failed to send email', err);
+      }
+    }
+
+    // 2. Ưu tiên gửi qua Brevo HTTP REST API (Cổng 443 HTTPS)
+    const brevoKey = process.env.BREVO_API_KEY;
+    if (brevoKey) {
+      try {
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'api-key': brevoKey,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: { name: 'AuctionHub', email: 'letuananh1207204@gmail.com' },
+            to: [{ email: to }],
+            subject,
+            htmlContent: html,
+          }),
+        });
+        const data: any = await res.json();
+        if (res.ok && data.messageId) {
+          this.logger.log(`[Brevo HTTP API] Email sent to ${to}: ${data.messageId}`);
+          return true;
+        } else {
+          this.logger.warn(`[Brevo HTTP API] Warning: ${JSON.stringify(data)}`);
+        }
+      } catch (err) {
+        this.logger.error('[Brevo HTTP API] Failed to send email', err);
+      }
+    }
+
+    // 3. Dự phòng gửi qua Nodemailer SMTP (Cổng 465 SSL)
     const from = '"AuctionHub" <letuananh1207204@gmail.com>';
 
     if (!this.transporter) {
