@@ -52,13 +52,10 @@ export class AuthService {
       },
     });
 
-    // Send real verification email via SMTP/Mailer
-    try {
-      await this.mailService.sendVerificationEmail(email, name, verificationToken);
-      console.log(`[VERIFICATION EMAIL SENT] to ${email} with token: ${verificationToken}`);
-    } catch (err) {
-      console.error('Failed to send verification email:', err);
-    }
+    // Send real verification email in background (non-blocking for instant UI response)
+    this.mailService.sendVerificationEmail(email, name, verificationToken)
+      .then(() => console.log(`[VERIFICATION EMAIL SENT] to ${email}`))
+      .catch((err) => console.error('Failed to send verification email:', err));
 
     const { password: _, ...result } = createdUser;
     return {
