@@ -7,45 +7,55 @@ export class MailService {
   private transporter: nodemailer.Transporter | null = null;
 
   constructor() {
-    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const port = parseInt(process.env.SMTP_PORT || '587', 10);
-    const user = process.env.SMTP_USER || 'letuananh1207204@gmail.com';
-    const pass = process.env.SMTP_PASS || 'ycidtukrduwjcbbh';
+    let user = (process.env.SMTP_USER || '').trim();
+    let pass = (process.env.SMTP_PASS || '').trim();
 
-    if (user && pass) {
-      if (host === 'smtp.gmail.com') {
-        this.transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: { user, pass },
-        });
-      } else {
-        this.transporter = nodemailer.createTransport({
-          host,
-          port,
-          secure: port === 465,
-          auth: { user, pass },
-        });
-      }
+    if (!user || user.length < 5 || user === '""' || user === "''") {
+      user = 'letuananh1207204@gmail.com';
+    }
+    if (!pass || pass.length < 10 || pass === '""' || pass === "''") {
+      pass = 'ycidtukrduwjcbbh';
+    }
+
+    try {
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass },
+      });
       this.logger.log(`SMTP Mailer initialized with user: ${user}`);
-    } else {
-      this.logger.warn('SMTP credentials (SMTP_USER / SMTP_PASS) not provided. Email notifications will be logged to console.');
+    } catch (err) {
+      this.logger.error('Failed to initialize nodemailer transporter', err);
     }
   }
 
   private async sendMail(to: string, subject: string, html: string) {
-    const from = process.env.SMTP_FROM || '"AuctionHub" <letuananh1207204@gmail.com>';
-    if (this.transporter) {
+    const from = '"AuctionHub" <letuananh1207204@gmail.com>';
+
+    if (!this.transporter) {
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: 'letuananh1207204@gmail.com', pass: 'ycidtukrduwjcbbh' },
+      });
+    }
+
+    try {
+      const info = await this.transporter.sendMail({ from, to, subject, html });
+      this.logger.log(`Email sent to ${to}: ${info.messageId}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send email to ${to}, attempting fallback transport...`, error);
       try {
-        const info = await this.transporter.sendMail({ from, to, subject, html });
-        this.logger.log(`Email sent to ${to}: ${info.messageId}`);
+        const fallbackTransporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: 'letuananh1207204@gmail.com', pass: 'ycidtukrduwjcbbh' },
+        });
+        const info = await fallbackTransporter.sendMail({ from, to, subject, html });
+        this.logger.log(`Fallback email sent to ${to}: ${info.messageId}`);
         return true;
-      } catch (error) {
-        this.logger.error(`Failed to send email to ${to}`, error);
+      } catch (fallbackError) {
+        this.logger.error(`Fallback failed to send email to ${to}`, fallbackError);
         return false;
       }
-    } else {
-      this.logger.log(`[MOCK EMAIL SENT]\nTo: ${to}\nSubject: ${subject}\nBody: ${html.substring(0, 150)}...`);
-      return true;
     }
   }
 
