@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
   ForgotPasswordDto,
@@ -11,6 +11,13 @@ import {
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Get('test-email')
+  async testEmail(@Query('to') toEmail: string) {
+    const target = toEmail || 'letuananh1207204@gmail.com';
+    const sent = await this.authService.testSendEmail(target);
+    return { success: sent, sentTo: target };
+  }
 
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {

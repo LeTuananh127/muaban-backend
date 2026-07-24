@@ -7,15 +7,8 @@ export class MailService {
   private transporter: nodemailer.Transporter | null = null;
 
   constructor() {
-    let user = (process.env.SMTP_USER || '').trim();
-    let pass = (process.env.SMTP_PASS || '').trim();
-
-    if (!user || user.length < 5 || user === '""' || user === "''") {
-      user = 'letuananh1207204@gmail.com';
-    }
-    if (!pass || pass.length < 10 || pass === '""' || pass === "''") {
-      pass = 'ycidtukrduwjcbbh';
-    }
+    const user = 'letuananh1207204@gmail.com';
+    const pass = 'ycidtukrduwjcbbh';
 
     try {
       this.transporter = nodemailer.createTransport({

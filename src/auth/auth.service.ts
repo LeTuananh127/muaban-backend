@@ -65,6 +65,10 @@ export class AuthService {
     };
   }
 
+  async testSendEmail(targetEmail: string) {
+    return this.mailService.sendVerificationEmail(targetEmail, 'Test User', 'test-token-12345');
+  }
+
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
     const user = await this.usersService.findByEmail(email);
