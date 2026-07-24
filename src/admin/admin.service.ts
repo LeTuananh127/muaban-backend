@@ -74,7 +74,7 @@ export class AdminService {
             category: { select: { id: true, name: true } },
           },
         },
-        winner: { select: { id: true, name: true, email: true } },
+        currentWinner: { select: { id: true, name: true, email: true } },
         _count: { select: { bids: true } },
       },
       orderBy: { createdAt: 'desc' },

@@ -172,18 +172,18 @@ export class UsersService {
     const [sellingOrders, buyingOrders, myAuctions, myBids] = await Promise.all([
       this.prisma.order.findMany({
         where: { sellerId: userId, createdAt: { gte: startDate } },
-        select: { price: true, status: true, createdAt: true },
+        select: { totalAmount: true, status: true, createdAt: true },
       }),
       this.prisma.order.findMany({
         where: { buyerId: userId, createdAt: { gte: startDate } },
-        select: { price: true, status: true, createdAt: true },
+        select: { totalAmount: true, status: true, createdAt: true },
       }),
       this.prisma.auction.findMany({
         where: { product: { ownerId: userId }, createdAt: { gte: startDate } },
         select: { id: true, createdAt: true },
       }),
       this.prisma.bid.findMany({
-        where: { bidderId: userId, createdAt: { gte: startDate } },
+        where: { userId: userId, createdAt: { gte: startDate } },
         select: { amount: true, createdAt: true },
       }),
     ]);
@@ -199,7 +199,7 @@ export class UsersService {
       const key = getKey(new Date(order.createdAt));
       salesCountMap[key] = (salesCountMap[key] ?? 0) + 1;
       if (order.status === 'COMPLETED' || order.status === 'PAID' || order.status === 'DELIVERED') {
-        salesRevMap[key] = (salesRevMap[key] ?? 0) + order.price;
+        salesRevMap[key] = (salesRevMap[key] ?? 0) + order.totalAmount;
       }
     }
 
@@ -207,7 +207,7 @@ export class UsersService {
       const key = getKey(new Date(order.createdAt));
       buysCountMap[key] = (buysCountMap[key] ?? 0) + 1;
       if (order.status === 'COMPLETED' || order.status === 'PAID' || order.status === 'DELIVERED') {
-        spendMap[key] = (spendMap[key] ?? 0) + order.price;
+        spendMap[key] = (spendMap[key] ?? 0) + order.totalAmount;
       }
     }
 
@@ -228,11 +228,11 @@ export class UsersService {
     const totals = {
       salesRevenue: sellingOrders
         .filter((o) => o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'DELIVERED')
-        .reduce((s, o) => s + o.price, 0),
+        .reduce((s, o) => s + o.totalAmount, 0),
       salesCount: sellingOrders.length,
       purchaseSpending: buyingOrders
         .filter((o) => o.status === 'COMPLETED' || o.status === 'PAID' || o.status === 'DELIVERED')
-        .reduce((s, o) => s + o.price, 0),
+        .reduce((s, o) => s + o.totalAmount, 0),
       buysCount: buyingOrders.length,
       auctionsCreated: myAuctions.length,
       bidsPlaced: myBids.length,
