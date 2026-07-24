@@ -32,7 +32,10 @@ export class CategoriesService {
         // Ignore if already created concurrently
       }
     }
-    return list;
+    const normal = list.filter((c) => c.name !== 'Khác' && c.slug !== 'khac');
+    const other = list.filter((c) => c.name === 'Khác' || c.slug === 'khac');
+    normal.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    return [...normal, ...other];
   }
 
   async findOne(id: string) {
