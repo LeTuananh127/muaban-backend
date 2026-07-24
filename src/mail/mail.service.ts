@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import * as dns from 'dns';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (_) {}
 
 @Injectable()
 export class MailService {
@@ -15,22 +20,23 @@ export class MailService {
         host: 'smtp.gmail.com',
         port: 465,
         secure: true,
+        family: 4,
         auth: { user, pass },
         tls: { rejectUnauthorized: false },
         connectionTimeout: 15000,
         greetingTimeout: 10000,
         socketTimeout: 15000,
-      });
-      this.logger.log(`SMTP Mailer initialized with user: ${user} (Port 465 Direct SSL)`);
+      } as any);
+      this.logger.log(`SMTP Mailer initialized with user: ${user} (Port 465 Direct SSL IPv4)`);
     } catch (err) {
       this.logger.error('Failed to initialize nodemailer transporter', err);
     }
   }
 
   private async sendMail(to: string, subject: string, html: string) {
-    // 1. Ưu tiên gửi qua Resend HTTP REST API (Cổng 443 HTTPS - Không bao giờ bị Render chặn)
-    const resendKey = process.env.RESEND_API_KEY || 're_WVwT2qHb_J9J6ojTKB5sSUfawKAZoVK9T';
-    if (resendKey) {
+    // 1. Ưu tiên gửi qua Resend HTTP REST API (Cổng 443 HTTPS)
+    const resendKey = process.env.RESEND_API_KEY;
+    if (resendKey && resendKey.startsWith('re_')) {
       try {
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
@@ -87,7 +93,7 @@ export class MailService {
       }
     }
 
-    // 3. Dự phòng gửi qua Nodemailer SMTP (Cổng 465 SSL)
+    // 3. Gửi qua Nodemailer SMTP Gmail (Cổng 465 SSL Direct IPv4)
     const from = '"AuctionHub" <letuananh1207204@gmail.com>';
 
     if (!this.transporter) {
@@ -95,9 +101,10 @@ export class MailService {
         host: 'smtp.gmail.com',
         port: 465,
         secure: true,
+        family: 4,
         auth: { user: 'letuananh1207204@gmail.com', pass: 'ycidtukrduwjcbbh' },
         tls: { rejectUnauthorized: false },
-      });
+      } as any);
     }
 
     try {
@@ -111,9 +118,10 @@ export class MailService {
           host: 'smtp.gmail.com',
           port: 465,
           secure: true,
+          family: 4,
           auth: { user: 'letuananh1207204@gmail.com', pass: 'ycidtukrduwjcbbh' },
           tls: { rejectUnauthorized: false },
-        });
+        } as any);
         const info = await fallbackTransporter.sendMail({ from, to, subject, html });
         this.logger.log(`Fallback email sent to ${to}: ${info.messageId}`);
         return true;
