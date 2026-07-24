@@ -34,42 +34,13 @@ export class MailService {
   }
 
   private async sendMail(to: string, subject: string, html: string) {
-    // 1. Ưu tiên gửi qua Resend HTTP REST API (Cổng 443 HTTPS)
-    const resendKey = (process.env.RESEND_API_KEY || '').trim();
-    if (resendKey && resendKey.startsWith('re_')) {
-      try {
-        const isOwner = to.toLowerCase() === 'letuananh1207204@gmail.com';
-        const resendTo = isOwner ? [to] : ['letuananh1207204@gmail.com'];
-        const resendSubject = isOwner ? subject : `[Tài khoản ${to}] ${subject}`;
-
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: 'AuctionHub <onboarding@resend.dev>',
-            to: resendTo,
-            subject: resendSubject,
-            html,
-          }),
-        });
-        const data: any = await res.json();
-        if (res.ok && data.id) {
-          this.logger.log(`[Resend HTTP API] Email sent for ${to}: ${data.id}`);
-          return true;
-        } else {
-          this.logger.warn(`[Resend HTTP API] Warning for ${to}: ${JSON.stringify(data)}`);
-        }
-      } catch (err) {
-        this.logger.error('[Resend HTTP API] Failed to send email', err);
-      }
-    }
-
-    // 2. Ưu tiên gửi qua Brevo HTTP REST API (Cổng 443 HTTPS)
-    const brevoKey = process.env.BREVO_API_KEY;
-    if (brevoKey) {
+    // 1. ƯU TIÊN CAO NHẤT: Brevo HTTP REST API (Port 443 HTTPS)
+    //    - Gửi được tới MỌI email trên thế giới (không bị giới hạn domain)
+    //    - Không bị Render firewall chặn (port 443)
+    //    - Free 300 email/ngày
+    //    Set BREVO_API_KEY=xkeysib-... trong Render Dashboard > Environment
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+    if (brevoKey && brevoKey.startsWith('xkeysib-')) {
       try {
         const res = await fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',
@@ -87,13 +58,43 @@ export class MailService {
         });
         const data: any = await res.json();
         if (res.ok && data.messageId) {
-          this.logger.log(`[Brevo HTTP API] Email sent to ${to}: ${data.messageId}`);
+          this.logger.log(`[Brevo HTTP API] ✅ Email sent to ${to}: ${data.messageId}`);
           return true;
         } else {
-          this.logger.warn(`[Brevo HTTP API] Warning: ${JSON.stringify(data)}`);
+          this.logger.warn(`[Brevo HTTP API] Warning for ${to}: ${JSON.stringify(data)}`);
         }
       } catch (err) {
         this.logger.error('[Brevo HTTP API] Failed to send email', err);
+      }
+    }
+
+    // 2. Fallback: Resend HTTP REST API (Port 443 HTTPS)
+    //    Lưu ý: Resend free tier chỉ gửi được về letuananh1207204@gmail.com
+    const resendKey = (process.env.RESEND_API_KEY || '').trim();
+    if (resendKey && resendKey.startsWith('re_')) {
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: 'AuctionHub <onboarding@resend.dev>',
+            to: [to],
+            subject,
+            html,
+          }),
+        });
+        const data: any = await res.json();
+        if (res.ok && data.id) {
+          this.logger.log(`[Resend HTTP API] ✅ Email sent to ${to}: ${data.id}`);
+          return true;
+        } else {
+          this.logger.warn(`[Resend HTTP API] Warning for ${to}: ${JSON.stringify(data)}`);
+        }
+      } catch (err) {
+        this.logger.error('[Resend HTTP API] Failed to send email', err);
       }
     }
 
