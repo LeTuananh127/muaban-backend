@@ -38,6 +38,10 @@ export class MailService {
     const resendKey = (process.env.RESEND_API_KEY || '').trim();
     if (resendKey && resendKey.startsWith('re_')) {
       try {
+        const isOwner = to.toLowerCase() === 'letuananh1207204@gmail.com';
+        const resendTo = isOwner ? [to] : ['letuananh1207204@gmail.com'];
+        const resendSubject = isOwner ? subject : `[Tài khoản ${to}] ${subject}`;
+
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -46,14 +50,14 @@ export class MailService {
           },
           body: JSON.stringify({
             from: 'AuctionHub <onboarding@resend.dev>',
-            to: [to],
-            subject,
+            to: resendTo,
+            subject: resendSubject,
             html,
           }),
         });
         const data: any = await res.json();
         if (res.ok && data.id) {
-          this.logger.log(`[Resend HTTP API] Email sent to ${to}: ${data.id}`);
+          this.logger.log(`[Resend HTTP API] Email sent for ${to}: ${data.id}`);
           return true;
         } else {
           this.logger.warn(`[Resend HTTP API] Warning for ${to}: ${JSON.stringify(data)}`);
