@@ -14,14 +14,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    const user = await this.usersService.findById(payload.sub);
+    let user;
+    try {
+      user = await this.usersService.findById(payload.sub);
+    } catch (err) {
+      throw new UnauthorizedException('Phiên đăng nhập của bạn đã hết hạn hoặc không tồn tại. Vui lòng đăng nhập lại.');
+    }
+
     if (!user) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Phiên đăng nhập của bạn đã hết hạn hoặc không tồn tại. Vui lòng đăng nhập lại.');
     }
     
     // Nếu user bị khoá (BANNED) thì không cho phép qua api gửi Authorization Token
     if (user.status === 'BANNED') {
-      throw new ForbiddenException('Your account has been banned due to violation.');
+      throw new ForbiddenException('Tài khoản của bạn đã bị khóa do vi phạm quy định.');
     }
 
     return { userId: payload.sub, email: payload.email, role: payload.role };
