@@ -18,7 +18,21 @@ export class CategoriesService {
   }
 
   async findAll() {
-    return this.prisma.category.findMany();
+    const list = await this.prisma.category.findMany({
+      orderBy: { name: 'asc' },
+    });
+    const hasOther = list.some((c) => c.name === 'Khác' || c.slug === 'khac');
+    if (!hasOther) {
+      try {
+        const newCat = await this.prisma.category.create({
+          data: { name: 'Khác', slug: 'khac' },
+        });
+        list.push(newCat);
+      } catch {
+        // Ignore if already created concurrently
+      }
+    }
+    return list;
   }
 
   async findOne(id: string) {

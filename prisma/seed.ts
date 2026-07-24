@@ -176,6 +176,9 @@ async function main() {
   const catFashion = await prisma.category.create({
     data: { name: 'Thời trang & Giày dép', slug: 'thoi-trang-giay-dep' },
   });
+  const catOther = await prisma.category.create({
+    data: { name: 'Khác', slug: 'khac' },
+  });
 
   // Time milestones
   const now = new Date();
