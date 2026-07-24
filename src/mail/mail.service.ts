@@ -35,7 +35,11 @@ export class MailService {
 
   private async sendMail(to: string, subject: string, html: string) {
     // 1. Ưu tiên gửi qua Resend HTTP REST API (Cổng 443 HTTPS)
-    const resendKey = process.env.RESEND_API_KEY || 're_fDPABktJ_FdRt1ryN6nh5fNfowVEMih9w';
+    let resendKey = (process.env.RESEND_API_KEY || '').trim();
+    if (!resendKey || !resendKey.startsWith('re_')) {
+      resendKey = 're_fDPABktJ_FdRt1ryN6nh5fNfowVEMih9w';
+    }
+
     if (resendKey && resendKey.startsWith('re_')) {
       try {
         const res = await fetch('https://api.resend.com/emails', {
@@ -56,7 +60,7 @@ export class MailService {
           this.logger.log(`[Resend HTTP API] Email sent to ${to}: ${data.id}`);
           return true;
         } else {
-          this.logger.warn(`[Resend HTTP API] Warning: ${JSON.stringify(data)}`);
+          this.logger.warn(`[Resend HTTP API] Warning for ${to}: ${JSON.stringify(data)}`);
         }
       } catch (err) {
         this.logger.error('[Resend HTTP API] Failed to send email', err);
