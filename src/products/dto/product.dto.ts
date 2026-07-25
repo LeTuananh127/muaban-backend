@@ -45,6 +45,11 @@ export class CreateProductAndAuctionDto {
   @IsOptional()
   shippingCost?: number;
 
+  @IsNumber()
+  @IsOptional()
+  @Min(1000)
+  bidIncrement?: number;
+
   @IsString()
   @IsNotEmpty()
   endTime: string;
@@ -92,6 +97,11 @@ export class UpdateProductAndAuctionDto {
   @IsNumber()
   @IsOptional()
   shippingCost?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1000)
+  bidIncrement?: number;
 
   @IsString()
   @IsOptional()

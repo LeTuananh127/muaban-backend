@@ -9,7 +9,7 @@ export class ProductsService {
   async createListing(createData: CreateProductAndAuctionDto, ownerId: string) {
     const { 
       title, description, images, condition, location, categoryId, 
-      startingPrice, reservePrice, buyNowPrice, shippingCost, endTime 
+      startingPrice, reservePrice, buyNowPrice, shippingCost, bidIncrement, endTime 
     } = createData;
 
     const end = new Date(endTime);
@@ -54,6 +54,7 @@ export class ProductsService {
           reservePrice,
           buyNowPrice,
           shippingCost,
+          bidIncrement: (bidIncrement && bidIncrement >= 1000) ? bidIncrement : 10000,
           endTime: end,
           status: 'ACTIVE'
         },
@@ -126,7 +127,7 @@ export class ProductsService {
 
     const {
       title, description, images, condition, location, categoryId,
-      startingPrice, reservePrice, buyNowPrice, shippingCost, endTime
+      startingPrice, reservePrice, buyNowPrice, shippingCost, bidIncrement, endTime
     } = updateData;
 
     if (categoryId) {
@@ -140,9 +141,10 @@ export class ProductsService {
         reservePrice !== undefined ||
         buyNowPrice !== undefined ||
         shippingCost !== undefined ||
+        bidIncrement !== undefined ||
         endTime !== undefined
       ) {
-        throw new BadRequestException('Cannot edit pricing or end time once bids have been placed');
+        throw new BadRequestException('Cannot edit pricing, increment or end time once bids have been placed');
       }
     }
 
@@ -170,6 +172,7 @@ export class ProductsService {
         if (reservePrice !== undefined) auctionData.reservePrice = reservePrice;
         if (buyNowPrice !== undefined) auctionData.buyNowPrice = buyNowPrice;
         if (shippingCost !== undefined) auctionData.shippingCost = shippingCost;
+        if (bidIncrement !== undefined) auctionData.bidIncrement = bidIncrement;
         if (endTime !== undefined) {
           const end = new Date(endTime);
           if (new Date() >= end) {
