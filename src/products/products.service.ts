@@ -75,14 +75,42 @@ export class ProductsService {
   }
 
   async findOne(id: string) {
-    const product = await this.prisma.product.findUnique({
+    let product = await this.prisma.product.findUnique({
       where: { id },
       include: {
         category: true,
         owner: { select: { id: true, name: true, avatar: true, rating: true } },
-        auction: true,
+        auction: {
+          include: {
+            bids: true,
+          },
+        },
       },
     });
+
+    if (!product) {
+      // Fallback: try finding by Auction ID
+      const auction = await this.prisma.auction.findUnique({
+        where: { id },
+        include: {
+          product: {
+            include: {
+              category: true,
+              owner: { select: { id: true, name: true, avatar: true, rating: true } },
+              auction: {
+                include: {
+                  bids: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      if (auction && auction.product) {
+        product = auction.product;
+      }
+    }
+
     if (!product) throw new NotFoundException('Product not found');
     return product;
   }
