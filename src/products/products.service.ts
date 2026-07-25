@@ -74,22 +74,17 @@ export class ProductsService {
     });
   }
 
-  async findOne(id: string) {
+  private async findProductByIdOrAuctionId(id: string) {
     let product = await this.prisma.product.findUnique({
       where: { id },
       include: {
         category: true,
         owner: { select: { id: true, name: true, avatar: true, rating: true } },
-        auction: {
-          include: {
-            bids: true,
-          },
-        },
+        auction: { include: { bids: true, order: true } },
       },
     });
 
     if (!product) {
-      // Fallback: try finding by Auction ID
       const auction = await this.prisma.auction.findUnique({
         where: { id },
         include: {
@@ -97,11 +92,7 @@ export class ProductsService {
             include: {
               category: true,
               owner: { select: { id: true, name: true, avatar: true, rating: true } },
-              auction: {
-                include: {
-                  bids: true,
-                },
-              },
+              auction: { include: { bids: true, order: true } },
             },
           },
         },
@@ -111,6 +102,11 @@ export class ProductsService {
       }
     }
 
+    return product;
+  }
+
+  async findOne(id: string) {
+    const product = await this.findProductByIdOrAuctionId(id);
     if (!product) throw new NotFoundException('Product not found');
     return product;
   }
@@ -140,10 +136,7 @@ export class ProductsService {
   }
 
   async updateListing(id: string, updateData: UpdateProductAndAuctionDto, ownerId: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
-      include: { auction: { include: { bids: true } } },
-    });
+    const product = await this.findProductByIdOrAuctionId(id);
 
     if (!product) throw new NotFoundException('Product not found');
     if (product.ownerId !== ownerId) {
@@ -178,7 +171,7 @@ export class ProductsService {
 
     return this.prisma.$transaction(async (prisma) => {
       const updatedProduct = await prisma.product.update({
-        where: { id },
+        where: { id: product.id },
         data: {
           title: title !== undefined ? title : undefined,
           description: description !== undefined ? description : undefined,
@@ -217,15 +210,12 @@ export class ProductsService {
         }
       }
 
-      return this.findOne(id);
+      return this.findOne(product.id);
     });
   }
 
   async deleteListing(id: string, ownerId: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
-      include: { auction: { include: { bids: true, order: true } } },
-    });
+    const product = await this.findProductByIdOrAuctionId(id);
 
     if (!product) throw new NotFoundException('Product not found');
     if (product.ownerId !== ownerId) {
@@ -240,17 +230,14 @@ export class ProductsService {
     }
 
     await this.prisma.product.delete({
-      where: { id },
+      where: { id: product.id },
     });
 
     return { message: 'Product deleted successfully' };
   }
 
   async cancelListing(id: string, ownerId: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
-      include: { auction: { include: { bids: true } } },
-    });
+    const product = await this.findProductByIdOrAuctionId(id);
 
     if (!product) throw new NotFoundException('Product not found');
     if (product.ownerId !== ownerId) {
