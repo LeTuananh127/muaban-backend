@@ -138,31 +138,61 @@ Quy tắc ứng xử và nghiệp vụ:
   }
 
   async generateListingContent(title: string, category?: string, condition?: string) {
+    // Dynamic fallback price estimator based on product keywords if AI SDK is offline
+    const titleLower = title.toLowerCase();
+    let estimatedMarketValue = 2000000;
+
+    if (titleLower.includes('iphone 15 pro max') || titleLower.includes('15 pro max')) {
+      estimatedMarketValue = 22000000;
+    } else if (titleLower.includes('iphone 14 pro max') || titleLower.includes('14 pro max')) {
+      estimatedMarketValue = 16500000;
+    } else if (titleLower.includes('iphone 13 pro max') || titleLower.includes('13 pro max')) {
+      estimatedMarketValue = 13000000;
+    } else if (titleLower.includes('iphone 12 pro max') || titleLower.includes('12 pro max')) {
+      estimatedMarketValue = 10000000;
+    } else if (titleLower.includes('iphone') || titleLower.includes('samsung galaxy') || titleLower.includes('ipad')) {
+      estimatedMarketValue = 7500000;
+    } else if (titleLower.includes('macbook') || titleLower.includes('laptop') || titleLower.includes('dell') || titleLower.includes('thinkpad')) {
+      estimatedMarketValue = 14000000;
+    } else if (titleLower.includes('sony') || titleLower.includes('canon') || titleLower.includes('fujifilm') || titleLower.includes('máy ảnh')) {
+      estimatedMarketValue = 12000000;
+    } else if (titleLower.includes('rolex') || titleLower.includes('apple watch') || titleLower.includes('đồng hồ')) {
+      estimatedMarketValue = 5000000;
+    }
+
     const fallbackResponse = {
-      description: `Sản phẩm "${title}" đã qua sử dụng với tình trạng ${condition || 'hoạt động tốt'}. Hàng chính hãng, ngoại hình đẹp, đầy đủ chức năng. Đấu giá minh bạch và giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazaar!`,
-      suggestedStartingPrice: 500000,
-      suggestedBidIncrement: 50000,
-      suggestedBuyNowPrice: 1500000,
-      suggestedLayout: 'standard',
+      description: `Sản phẩm "${title}" chính hãng đã qua sử dụng với tình trạng ${condition || 'hoạt động hoàn hảo'}. Ngoại hình đẹp, chưa qua sửa chữa, đầy đủ phụ kiện. Đấu giá minh bạch và giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn)!`,
+      suggestedStartingPrice: Math.round(estimatedMarketValue * 0.45 / 10000) * 10000,
+      suggestedBidIncrement: estimatedMarketValue >= 10000000 ? 100000 : 50000,
+      suggestedBuyNowPrice: estimatedMarketValue,
+      suggestedLayout: estimatedMarketValue >= 10000000 ? 'full_banner' : 'standard',
     };
 
     if (!this.genAI) return fallbackResponse;
 
     try {
       const prompt = `
-Bạn là Trợ lý AI Định giá & Hỗ trợ Người bán Đăng tin Đấu giá Đồ cũ trên nền tảng Bazaar (bazaar.vn).
-Người bán cung cấp thông tin sơ bộ sản phẩm:
+Bạn là Trợ lý AI Chuyên gia Định giá & Viết bài Đăng bán Đồ cũ trên nền tảng Bazaar (bazaar.vn).
+Người bán cung cấp thông tin sản phẩm:
 - Tên sản phẩm: ${title}
 - Danh mục: ${category || 'Đồ cũ cá nhân'}
 - Tình trạng: ${condition || 'Đã qua sử dụng'}
 
-Hãy phân tích giá trị thị trường hàng đồ cũ tại Việt Nam và sinh ra định dạng JSON hợp lệ duy nhất (không chứa các thẻ bọc markdown khác) theo cấu trúc:
+HƯỚNG DẪN ĐỊNH GIÁ THỰC TẾ TẠI VIỆT NAM (RẤT QUAN TRỌNG):
+1. Hãy phân tích tên sản phẩm "${title}" để xác định chính xác đây là món đồ gì và giá trị thực tế của nó trên thị trường đồ cũ Việt Nam hiện tại. (Ví dụ: iPhone 14 Pro Max 256GB đồ cũ có giá thị trường khoảng 16.000.000đ - 18.000.000đ; MacBook Pro M1 khoảng 14.000.000đ; v.v.).
+2. Tính toán 3 mức giá hợp lý theo nguyên lý Đấu giá Anh:
+   - "suggestedStartingPrice": Giá khởi điểm bằng khoảng 40% - 50% giá thị trường đồ cũ (đặt thấp hơn để thu hút lượt đấu giá sôi nổi).
+   - "suggestedBidIncrement": Bước giá từ 20,000đ đến 200,000đ tùy giá trị sản phẩm.
+   - "suggestedBuyNowPrice": Giá mua ngay bằng khoảng 95% - 100% giá trị thị trường thực tế đồ cũ.
+   - "suggestedLayout": Chọn "full_banner" đối với đồ công nghệ/hàng hiệu cao cấp (>10 triệu), "grid_gallery" đối với bộ sưu tập/thời trang, hoặc "standard".
+
+Hãy trả về định dạng JSON hợp lệ duy nhất (không bọc trong thẻ markdown khác) với cấu trúc:
 {
-  "description": "Bài viết mô tả chi tiết sản phẩm chuẩn SEO (từ 150 - 250 từ), trình bày lôi cuốn, nêu bật ưu điểm, độ mới, sự an tâm khi đấu giá và lời kêu gọi đặt giá.",
-  "suggestedStartingPrice": <số nguyên khởi điểm hợp lý theo VNĐ, ví dụ 500000>,
-  "suggestedBidIncrement": <số nguyên bước giá hợp lý theo VNĐ, ví dụ 20000>,
-  "suggestedBuyNowPrice": <số nguyên giá mua ngay hợp lý theo VNĐ, ví dụ 1200000>,
-  "suggestedLayout": "standard"
+  "description": "Bài viết mô tả chi tiết sản phẩm chuẩn SEO (từ 150 - 250 từ), liệt kê tình trạng, phụ kiện, chính sách bao test và lời kêu gọi đặt giá nhiệt tình.",
+  "suggestedStartingPrice": <số nguyên giá khởi điểm tính bằng VNĐ>,
+  "suggestedBidIncrement": <số nguyên bước giá tính bằng VNĐ>,
+  "suggestedBuyNowPrice": <số nguyên giá mua ngay tính bằng VNĐ>,
+  "suggestedLayout": "standard" | "full_banner" | "grid_gallery"
 }
 `;
 
@@ -175,13 +205,21 @@ Hãy phân tích giá trị thị trường hàng đồ cũ tại Việt Nam và
           const jsonMatch = text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            return {
-              description: parsed.description || fallbackResponse.description,
-              suggestedStartingPrice: Number(parsed.suggestedStartingPrice) || fallbackResponse.suggestedStartingPrice,
-              suggestedBidIncrement: Number(parsed.suggestedBidIncrement) || fallbackResponse.suggestedBidIncrement,
-              suggestedBuyNowPrice: Number(parsed.suggestedBuyNowPrice) || fallbackResponse.suggestedBuyNowPrice,
-              suggestedLayout: ['standard', 'full_banner', 'grid_gallery'].includes(parsed.suggestedLayout) ? parsed.suggestedLayout : 'standard',
-            };
+            const startPrice = Number(parsed.suggestedStartingPrice);
+            const buyNowPrice = Number(parsed.suggestedBuyNowPrice);
+            const increment = Number(parsed.suggestedBidIncrement);
+
+            if (startPrice > 0 && buyNowPrice > startPrice) {
+              return {
+                description: parsed.description || fallbackResponse.description,
+                suggestedStartingPrice: startPrice,
+                suggestedBidIncrement: increment || fallbackResponse.suggestedBidIncrement,
+                suggestedBuyNowPrice: buyNowPrice,
+                suggestedLayout: ['standard', 'full_banner', 'grid_gallery'].includes(parsed.suggestedLayout)
+                  ? parsed.suggestedLayout
+                  : fallbackResponse.suggestedLayout,
+              };
+            }
           }
         } catch (err) {
           console.warn(`Model ${modelName} failed in generateListingContent`, err);
