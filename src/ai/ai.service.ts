@@ -244,8 +244,40 @@ Quy tắc ứng xử và nghiệp vụ:
     const calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 100000) * 100000;
     const calculatedIncrement = estimatedMarketValue >= 15000000 ? 200000 : (estimatedMarketValue >= 5000000 ? 100000 : 50000);
 
+    // Rich dynamic description builder for Fallback (when AI SDK is offline)
+    let dynamicDescription = '';
+    if (titleLower.includes('iphone') || titleLower.includes('macbook') || titleLower.includes('laptop') || titleLower.includes('samsung')) {
+      dynamicDescription = `📌 **TỔNG QUAN SẢN PHẨM**:
+Siêu phẩm ${title} chính hãng, ngoại hình còn rất mới (${condition || 'Đã qua sử dụng 98%'}). Máy nguyên bản 100%, chưa từng qua sửa chữa hay thay thế linh kiện.
+
+✨ **TÌNH TRẠNG & TÍNH NĂNG NỔI BẬT**:
+- Màn hình sắc nét, cấu hình cực mạnh đáp ứng mượt mà mọi tác vụ làm việc, giải trí và chơi game.
+- Pin bền bỉ, mọi tính năng (FaceID/TouchID, Wifi, Bluetooth, Camera) đều hoạt động hoàn hảo.
+- Phụ kiện kèm theo đầy đủ: Cáp sạc chính hãng, tặng kèm ốp lưng/túi chống sốc.
+
+🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**:
+- Bao test sử dụng 7 ngày thoải mái.
+- Bảo hộ tài chính an toàn 100% qua cơ chế Ví ký quỹ Escrow Bazaar (bazaar.vn) - Hoàn cọc tức thì nếu sản phẩm không đúng mô tả!
+
+⚡ **LỜI KÊU GỌI ĐẶT GIÁ**:
+Nhanh tay đặt giá đấu để sở hữu chiếc ${title} với giá cực kỳ ưu đãi!`;
+    } else {
+      dynamicDescription = `📌 **TỔNG QUAN SẢN PHẨM**:
+Cần bán sản phẩm ${title} chính hãng, tình trạng ${condition || 'hoạt động tốt'}, được giữ gìn cẩn thận.
+
+✨ **TÌNH TRẠNG & TÍNH NĂNG NỔI BẬT**:
+- Sản phẩm nguyên bản, ngoại hình đẹp, không hư hỏng hay lỗi lầm.
+- Phụ kiện đi kèm đầy đủ theo sản phẩm.
+
+🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**:
+- Giao dịch minh bạch, bảo hộ an toàn 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn).
+
+⚡ **LỜI KÊU GỌI ĐẶT GIÁ**:
+Chúc các bạn đấu giá may mắn và chốt được sản phẩm ưng ý!`;
+    }
+
     const fallbackResponse = {
-      description: `Sản phẩm "${title}" chính hãng cao cấp đã qua sử dụng với tình trạng ${condition || 'hoạt động hoàn hảo'}. Máy nguyên bản chưa qua sửa chữa, ngoại hình đẹp, đầy đủ phụ kiện. Bao test thoải mái và được bảo hộ giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn)!`,
+      description: dynamicDescription,
       suggestedStartingPrice: calculatedStarting,
       suggestedBidIncrement: calculatedIncrement,
       suggestedBuyNowPrice: estimatedMarketValue,
@@ -256,18 +288,24 @@ Quy tắc ứng xử và nghiệp vụ:
 
     try {
       const prompt = `
-Bạn là Trợ lý AI Chuyên gia Định giá & Viết bài Đăng bán Đồ cũ trên nền tảng Bazaar (bazaar.vn).
+Bạn là Trợ lý AI Chuyên gia Marketing & Định giá Sản phẩm Đồ cũ trên nền tảng Bazaar (bazaar.vn).
 Người bán cung cấp thông tin sản phẩm:
 - Tên sản phẩm: ${title}
 - Danh mục: ${category || 'Đồ cũ cá nhân'}
 - Tình trạng: ${condition || 'Đã qua sử dụng'}
 ${historicalContext ? `- ${historicalContext}` : ''}
 
-HƯỚNG DẪN ĐỊNH GIÁ AI THÔNG MINH TẠI VIỆT NAM (RẤT QUAN TRỌNG):
-1. Vận dụng tri thức thực tế của bạn về thị trường đồ cũ tại Việt Nam để phân tích chính xác món đồ "${title}" (kích thước, năm ra mắt, cấu hình, dung lượng, thương hiệu).
-2. Nếu có dữ liệu lịch sử giao dịch thành công trên CSDL Bazaar ở trên, hãy kết hợp tham khảo để đề xuất mức giá sát nhất với thực tế giao dịch của hệ thống.
-3. Tính toán 3 mức giá hợp lý theo nguyên lý Đấu giá Anh:
-   - "suggestedStartingPrice": Giá khởi điểm bằng khoảng 40% - 50% giá thị trường đồ cũ (đặt thấp hơn để thu hút lượt đặt giá sôi nổi).
+HƯỚNG DẪN VIẾT BÀI MÔ TẢ NỔI BẬT VÀ HẤP DẪN (RẤT QUAN TRỌNG):
+Viết một bài mô tả chi tiết, chuyên nghiệp và cực kỳ thuyết phục (khoảng 150 - 250 từ) gồm 4 phần rõ ràng với biểu tượng cảm xúc (emoji):
+1. 📌 **TỔNG QUAN SẢN PHẨM**: Giới thiệu lôi cuốn về tên sản phẩm, nguồn gốc chính hãng và độ mới.
+2. ✨ **TÌNH TRẠNG & TÍNH NĂNG NỔI BẬT**: Liệt kê chi tiết ngoại hình, độ mượt mà, linh kiện nguyên bản và phụ kiện đi kèm.
+3. 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**: Khẳng định chính sách bao test và bảo vệ giao dịch 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn).
+4. ⚡ **LỜI KÊU GỌI ĐẶT GIÁ**: Kêu gọi người mua hào hứng tham gia đặt giá ngay.
+
+HƯỚNG DẪN ĐỊNH GIÁ AI THÔNG MINH TẠI VIỆT NAM:
+1. Phân tích chính xác tên sản phẩm "${title}" (kích thước, năm ra mắt, cấu hình, dung lượng, thương hiệu).
+2. Định giá 3 mức hợp lý theo nguyên lý Đấu giá Anh:
+   - "suggestedStartingPrice": Giá khởi điểm bằng khoảng 40% - 50% giá thị trường đồ cũ (đặt thấp hơn để kích thích lượt đặt giá sôi nổi).
    - "suggestedBidIncrement": Bước giá từ 50,000đ đến 200,000đ tùy giá trị sản phẩm.
    - "suggestedBuyNowPrice": Giá mua ngay bằng khoảng 95% - 100% giá trị thị trường thực tế đồ cũ tại Việt Nam.
    - "suggestedLayout": Chọn "full_banner" đối với đồ công nghệ/hàng hiệu cao cấp (>10 triệu), "grid_gallery" đối với bộ sưu tập/thời trang, hoặc "standard".
