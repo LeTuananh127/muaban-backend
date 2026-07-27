@@ -22,7 +22,7 @@ export class SmsService {
 
   async sendSmsOtp(phone: string, otp: string): Promise<boolean> {
     const formattedPhone = this.formatPhone(phone);
-    const body = `[AuctionHub] Ma OTP xac thuc so dien thoai cua ban la: ${otp}. Ma co hieu luc trong 5 phut.`;
+    const body = `[Bazaar] Ma OTP xac thuc so dien thoai cua ban la: ${otp}. Ma co hieu luc trong 5 phut.`;
 
     // 0. Ưu tiên gửi qua Zalo ZNS API nếu có ZALO_ZNS_ACCESS_TOKEN và ZALO_ZNS_TEMPLATE_ID
     const zaloToken = process.env.ZALO_ZNS_ACCESS_TOKEN;

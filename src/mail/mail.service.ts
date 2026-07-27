@@ -50,7 +50,7 @@ export class MailService {
             'content-type': 'application/json',
           },
           body: JSON.stringify({
-            sender: { name: 'AuctionHub', email: 'letuananh1207204@gmail.com' },
+            sender: { name: 'Bazaar', email: 'letuananh1207204@gmail.com' },
             to: [{ email: to }],
             subject,
             htmlContent: html,
@@ -80,7 +80,7 @@ export class MailService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'AuctionHub <onboarding@resend.dev>',
+            from: 'Bazaar <onboarding@resend.dev>',
             to: [to],
             subject,
             html,
@@ -99,7 +99,7 @@ export class MailService {
     }
 
     // 3. Gửi qua Nodemailer SMTP Gmail (Cổng 465 SSL Direct IPv4)
-    const from = '"AuctionHub" <letuananh1207204@gmail.com>';
+    const from = '"Bazaar" <letuananh1207204@gmail.com>';
 
     if (!this.transporter) {
       this.transporter = nodemailer.createTransport({
@@ -138,29 +138,29 @@ export class MailService {
   }
 
   async sendVerificationEmail(toEmail: string, userName: string, token: string) {
-    const appUrl = process.env.FRONTEND_URL || 'https://muabandocuui.vercel.app';
+    const appUrl = process.env.FRONTEND_URL || 'https://bazaar.vn';
     const verifyLink = `${appUrl}/verify-email?token=${token}`;
-    const subject = '🔑 [AuctionHub] Xác thực địa chỉ email tài khoản của bạn';
+    const subject = '🔑 [Bazaar] Xác thực địa chỉ email tài khoản của bạn';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px;">
-        <h2 style="color: #7c3aed; text-align: center;">Chào mừng ${userName} đến với AuctionHub!</h2>
-        <p>Cảm ơn bạn đã đăng ký tài khoản tại nền tảng đấu giá trực tuyến AuctionHub.</p>
+        <h2 style="color: #7c3aed; text-align: center;">Chào mừng ${userName} đến với Bazaar!</h2>
+        <p>Cảm ơn bạn đã đăng ký tài khoản tại ứng dụng bán và mua đồ cũ bằng đấu giá Bazaar (bazaar.vn).</p>
         <p>Vui lòng bấm vào nút bên dưới để hoàn tất xác thực địa chỉ email của bạn:</p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${verifyLink}" style="background: linear-gradient(135deg, #7c3aed, #c026d3); color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 8px; display: inline-block;">Kích hoạt tài khoản</a>
         </div>
         <p style="color: #666; font-size: 13px;">Hoặc copy đường dẫn này paste vào trình duyệt: <a href="${verifyLink}">${verifyLink}</a></p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="font-size: 12px; color: #999; text-align: center;">AuctionHub - Sàn Đấu Giá Trực Tuyến Hàng Đầu</p>
+        <p style="font-size: 12px; color: #999; text-align: center;">Bazaar (bazaar.vn) - Ứng Dụng Bán & Mua Đồ Cũ Bằng Đấu Giá</p>
       </div>
     `;
     return this.sendMail(toEmail, subject, html);
   }
 
   async sendOutbidNotification(toEmail: string, userName: string, auctionTitle: string, newPrice: number, auctionId: string) {
-    const appUrl = process.env.FRONTEND_URL || 'https://muabandocuui.vercel.app';
+    const appUrl = process.env.FRONTEND_URL || 'https://bazaar.vn';
     const auctionLink = `${appUrl}/auction/${auctionId}`;
-    const subject = `⚡ [AuctionHub] Mức giá của bạn tại "${auctionTitle}" đã bị vượt!`;
+    const subject = `⚡ [Bazaar] Mức giá của bạn tại "${auctionTitle}" đã bị vượt!`;
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #fef3c7; background-color: #fffbbb; border-radius: 12px;">
         <h2 style="color: #d97706;">Thông báo vượt giá đấu!</h2>
@@ -177,9 +177,9 @@ export class MailService {
   }
 
   async sendAuctionWonNotification(toEmail: string, userName: string, auctionTitle: string, winningPrice: number, orderId: string) {
-    const appUrl = process.env.FRONTEND_URL || 'https://muabandocuui.vercel.app';
+    const appUrl = process.env.FRONTEND_URL || 'https://bazaar.vn';
     const checkoutLink = `${appUrl}/checkout/${orderId}`;
-    const subject = `🎉 [AuctionHub] CHÚC MỪNG! Bạn đã thắng phiên đấu giá "${auctionTitle}"`;
+    const subject = `🎉 [Bazaar] CHÚC MỪNG! Bạn đã thắng phiên đấu giá "${auctionTitle}"`;
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #dcfce7; background-color: #f0fdf4; border-radius: 12px;">
         <h2 style="color: #16a34a; text-align: center;">🎉 Xin chúc mừng bạn đã chiến thắng!</h2>
@@ -196,18 +196,18 @@ export class MailService {
   }
 
   async sendPhoneOtpEmail(toEmail: string, userName: string, phone: string, otp: string) {
-    const subject = `📱 [AuctionHub] Mã OTP xác thực số điện thoại: ${otp}`;
+    const subject = `📱 [Bazaar] Mã OTP xác thực số điện thoại: ${otp}`;
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
         <h2 style="color: #7c3aed; text-align: center; margin-bottom: 20px;">Mã xác thực số điện thoại</h2>
         <p>Xin chào <strong>${userName}</strong>,</p>
-        <p>Bạn vừa yêu cầu gửi mã xác thực OTP để xác minh số điện thoại <strong>${phone}</strong> tại tài khoản AuctionHub.</p>
+        <p>Bạn vừa yêu cầu gửi mã xác thực OTP để xác minh số điện thoại <strong>${phone}</strong> tại tài khoản Bazaar.</p>
         <div style="text-align: center; margin: 25px 0;">
           <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #7c3aed; background: #f3e8ff; padding: 12px 24px; border-radius: 8px; font-family: monospace; display: inline-block;">${otp}</span>
         </div>
         <p style="color: #666; font-size: 13px; text-align: center;">Mã OTP có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="font-size: 12px; color: #999; text-align: center;">AuctionHub - Sàn Đấu Giá Trực Tuyến Hàng Đầu</p>
+        <p style="font-size: 12px; color: #999; text-align: center;">Bazaar (bazaar.vn) - Ứng Dụng Bán & Mua Đồ Cũ Bằng Đấu Giá</p>
       </div>
     `;
     return this.sendMail(toEmail, subject, html);
