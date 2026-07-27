@@ -142,7 +142,45 @@ Quy tắc ứng xử và nghiệp vụ:
     const titleLower = title.toLowerCase();
     let estimatedMarketValue = 5000000;
 
-    if (titleLower.includes('macbook')) {
+    // 1. Smart Regex Parser for iPhone series (iPhone 16, 15, 14, 13, 12...)
+    const iphoneMatch = titleLower.match(/iphone\s*(\d+)(\s*pro\s*max|\s*pro|\s*plus)?/i);
+    const samsungMatch = titleLower.match(/s2(\d+)\s*(ultra|plus)?/i);
+
+    if (iphoneMatch) {
+      const versionNumber = parseInt(iphoneMatch[1], 10);
+      const subType = (iphoneMatch[2] || '').toLowerCase();
+
+      let basePrice = 8000000;
+      if (versionNumber >= 16) {
+        basePrice = subType.includes('pro max') ? 34000000 : subType.includes('pro') ? 28000000 : 21000000;
+      } else if (versionNumber === 15) {
+        basePrice = subType.includes('pro max') ? 24000000 : subType.includes('pro') ? 20500000 : 16000000;
+      } else if (versionNumber === 14) {
+        basePrice = subType.includes('pro max') ? 18500000 : subType.includes('pro') ? 15500000 : 12500000;
+      } else if (versionNumber === 13) {
+        basePrice = subType.includes('pro max') ? 13500000 : subType.includes('pro') ? 11500000 : 9500000;
+      } else if (versionNumber === 12) {
+        basePrice = subType.includes('pro max') ? 10500000 : subType.includes('pro') ? 9000000 : 7500000;
+      } else {
+        basePrice = 6000000;
+      }
+
+      // Storage capacity additions
+      if (titleLower.includes('1tb')) basePrice += 4500000;
+      else if (titleLower.includes('512gb')) basePrice += 2500000;
+      else if (titleLower.includes('256gb')) basePrice += 1000000;
+
+      estimatedMarketValue = basePrice;
+    } else if (samsungMatch) {
+      const sNum = parseInt(samsungMatch[1], 10);
+      const isUltra = (samsungMatch[2] || '').toLowerCase() === 'ultra';
+
+      if (sNum >= 24) estimatedMarketValue = isUltra ? 23000000 : 17000000;
+      else if (sNum === 23) estimatedMarketValue = isUltra ? 16500000 : 12500000;
+      else if (sNum === 22) estimatedMarketValue = isUltra ? 12000000 : 9000000;
+
+      if (titleLower.includes('1tb') || titleLower.includes('512gb')) estimatedMarketValue += 2000000;
+    } else if (titleLower.includes('macbook')) {
       if (titleLower.includes('m3 max') || titleLower.includes('m2 max') || titleLower.includes('m1 max')) {
         estimatedMarketValue = 38000000;
       } else if (titleLower.includes('16 inch') || titleLower.includes('16"') || titleLower.includes('16-inch')) {
@@ -162,18 +200,6 @@ Quy tắc ứng xử và nghiệp vụ:
         estimatedMarketValue += 4000000;
       } else if (titleLower.includes('512gb')) {
         estimatedMarketValue += 1500000;
-      }
-    } else if (titleLower.includes('iphone')) {
-      if (titleLower.includes('15 pro max')) estimatedMarketValue = 24000000;
-      else if (titleLower.includes('15 pro')) estimatedMarketValue = 20500000;
-      else if (titleLower.includes('14 pro max')) estimatedMarketValue = 18500000;
-      else if (titleLower.includes('14 pro')) estimatedMarketValue = 15500000;
-      else if (titleLower.includes('13 pro max')) estimatedMarketValue = 13500000;
-      else if (titleLower.includes('12 pro max')) estimatedMarketValue = 10500000;
-      else estimatedMarketValue = 8500000;
-
-      if (titleLower.includes('1tb') || titleLower.includes('512gb')) {
-        estimatedMarketValue += 2500000;
       }
     } else if (titleLower.includes('rtx 4090') || titleLower.includes('rtx 4080')) {
       estimatedMarketValue = 35000000;
