@@ -138,32 +138,58 @@ Quy tắc ứng xử và nghiệp vụ:
   }
 
   async generateListingContent(title: string, category?: string, condition?: string) {
-    // Dynamic fallback price estimator based on product keywords if AI SDK is offline
+    // Advanced dynamic valuation matrix for Vietnamese second-hand market
     const titleLower = title.toLowerCase();
-    let estimatedMarketValue = 2000000;
+    let estimatedMarketValue = 5000000;
 
-    if (titleLower.includes('iphone 15 pro max') || titleLower.includes('15 pro max')) {
-      estimatedMarketValue = 22000000;
-    } else if (titleLower.includes('iphone 14 pro max') || titleLower.includes('14 pro max')) {
-      estimatedMarketValue = 16500000;
-    } else if (titleLower.includes('iphone 13 pro max') || titleLower.includes('13 pro max')) {
-      estimatedMarketValue = 13000000;
-    } else if (titleLower.includes('iphone 12 pro max') || titleLower.includes('12 pro max')) {
-      estimatedMarketValue = 10000000;
-    } else if (titleLower.includes('iphone') || titleLower.includes('samsung galaxy') || titleLower.includes('ipad')) {
-      estimatedMarketValue = 7500000;
-    } else if (titleLower.includes('macbook') || titleLower.includes('laptop') || titleLower.includes('dell') || titleLower.includes('thinkpad')) {
-      estimatedMarketValue = 14000000;
-    } else if (titleLower.includes('sony') || titleLower.includes('canon') || titleLower.includes('fujifilm') || titleLower.includes('máy ảnh')) {
-      estimatedMarketValue = 12000000;
-    } else if (titleLower.includes('rolex') || titleLower.includes('apple watch') || titleLower.includes('đồng hồ')) {
-      estimatedMarketValue = 5000000;
+    if (titleLower.includes('macbook')) {
+      if (titleLower.includes('m3 max') || titleLower.includes('m2 max') || titleLower.includes('m1 max')) {
+        estimatedMarketValue = 38000000;
+      } else if (titleLower.includes('16 inch') || titleLower.includes('16"') || titleLower.includes('16-inch')) {
+        estimatedMarketValue = 28500000;
+      } else if (titleLower.includes('14 inch') || titleLower.includes('14"') || titleLower.includes('14-inch')) {
+        estimatedMarketValue = 23000000;
+      } else if (titleLower.includes('air m2') || titleLower.includes('air m3')) {
+        estimatedMarketValue = 18500000;
+      } else if (titleLower.includes('air m1')) {
+        estimatedMarketValue = 12500000;
+      } else {
+        estimatedMarketValue = 18000000;
+      }
+
+      // Storage boost for 1TB / 2TB / 512GB
+      if (titleLower.includes('1tb') || titleLower.includes('2tb')) {
+        estimatedMarketValue += 4000000;
+      } else if (titleLower.includes('512gb')) {
+        estimatedMarketValue += 1500000;
+      }
+    } else if (titleLower.includes('iphone')) {
+      if (titleLower.includes('15 pro max')) estimatedMarketValue = 24000000;
+      else if (titleLower.includes('15 pro')) estimatedMarketValue = 20500000;
+      else if (titleLower.includes('14 pro max')) estimatedMarketValue = 18500000;
+      else if (titleLower.includes('14 pro')) estimatedMarketValue = 15500000;
+      else if (titleLower.includes('13 pro max')) estimatedMarketValue = 13500000;
+      else if (titleLower.includes('12 pro max')) estimatedMarketValue = 10500000;
+      else estimatedMarketValue = 8500000;
+
+      if (titleLower.includes('1tb') || titleLower.includes('512gb')) {
+        estimatedMarketValue += 2500000;
+      }
+    } else if (titleLower.includes('rtx 4090') || titleLower.includes('rtx 4080')) {
+      estimatedMarketValue = 35000000;
+    } else if (titleLower.includes('sony a7') || titleLower.includes('canon r6')) {
+      estimatedMarketValue = 30000000;
+    } else if (titleLower.includes('laptop') || titleLower.includes('gaming') || titleLower.includes('asus rog') || titleLower.includes('thinkpad')) {
+      estimatedMarketValue = 16000000;
     }
 
+    const calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 100000) * 100000;
+    const calculatedIncrement = estimatedMarketValue >= 15000000 ? 200000 : (estimatedMarketValue >= 5000000 ? 100000 : 50000);
+
     const fallbackResponse = {
-      description: `Sản phẩm "${title}" chính hãng đã qua sử dụng với tình trạng ${condition || 'hoạt động hoàn hảo'}. Ngoại hình đẹp, chưa qua sửa chữa, đầy đủ phụ kiện. Đấu giá minh bạch và giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn)!`,
-      suggestedStartingPrice: Math.round(estimatedMarketValue * 0.45 / 10000) * 10000,
-      suggestedBidIncrement: estimatedMarketValue >= 10000000 ? 100000 : 50000,
+      description: `Sản phẩm "${title}" chính hãng cao cấp đã qua sử dụng với tình trạng ${condition || 'hoạt động hoàn hảo'}. Máy nguyên bản chưa qua sửa chữa, ngoại hình đẹp, đầy đủ phụ kiện. Bao test thoải mái và được bảo hộ giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn)!`,
+      suggestedStartingPrice: calculatedStarting,
+      suggestedBidIncrement: calculatedIncrement,
       suggestedBuyNowPrice: estimatedMarketValue,
       suggestedLayout: estimatedMarketValue >= 10000000 ? 'full_banner' : 'standard',
     };
@@ -179,10 +205,12 @@ Người bán cung cấp thông tin sản phẩm:
 - Tình trạng: ${condition || 'Đã qua sử dụng'}
 
 HƯỚNG DẪN ĐỊNH GIÁ THỰC TẾ TẠI VIỆT NAM (RẤT QUAN TRỌNG):
-1. Hãy phân tích tên sản phẩm "${title}" để xác định chính xác đây là món đồ gì và giá trị thực tế của nó trên thị trường đồ cũ Việt Nam hiện tại. (Ví dụ: iPhone 14 Pro Max 256GB đồ cũ có giá thị trường khoảng 16.000.000đ - 18.000.000đ; MacBook Pro M1 khoảng 14.000.000đ; v.v.).
+1. Phân tích chính xác tên sản phẩm "${title}" bao gồm thương hiệu, model, dung lượng ổ cứng (1TB, 512GB), kích thước (16 inch, 14 inch) để định giá thị trường đồ cũ thực tế tại Việt Nam hiện tại.
+   - Ví dụ: MacBook Pro 16 inch M1 Pro 1TB cũ có giá thị trường thực tế khoảng 30.000.000đ - 33.000.000đ.
+   - Ví dụ: iPhone 14 Pro Max 256GB cũ khoảng 18.000.000đ.
 2. Tính toán 3 mức giá hợp lý theo nguyên lý Đấu giá Anh:
-   - "suggestedStartingPrice": Giá khởi điểm bằng khoảng 40% - 50% giá thị trường đồ cũ (đặt thấp hơn để thu hút lượt đấu giá sôi nổi).
-   - "suggestedBidIncrement": Bước giá từ 20,000đ đến 200,000đ tùy giá trị sản phẩm.
+   - "suggestedStartingPrice": Giá khởi điểm bằng khoảng 40% - 50% giá thị trường đồ cũ (đặt thấp hơn để thu hút lượt đặt giá sôi nổi).
+   - "suggestedBidIncrement": Bước giá từ 50,000đ đến 200,000đ tùy giá trị sản phẩm.
    - "suggestedBuyNowPrice": Giá mua ngay bằng khoảng 95% - 100% giá trị thị trường thực tế đồ cũ.
    - "suggestedLayout": Chọn "full_banner" đối với đồ công nghệ/hàng hiệu cao cấp (>10 triệu), "grid_gallery" đối với bộ sưu tập/thời trang, hoặc "standard".
 
