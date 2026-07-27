@@ -6,6 +6,12 @@ interface ChatMessageDto {
   history?: Array<{ role: 'user' | 'model'; text: string }>;
 }
 
+interface GenerateListingDto {
+  title: string;
+  category?: string;
+  condition?: string;
+}
+
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
@@ -18,5 +24,11 @@ export class AiController {
     
     const reply = await this.aiService.getChatResponse(message, history);
     return { reply };
+  }
+
+  @Post('generate-listing')
+  @HttpCode(HttpStatus.OK)
+  async generateListing(@Body() body: GenerateListingDto) {
+    return this.aiService.generateListingContent(body.title, body.category, body.condition);
   }
 }

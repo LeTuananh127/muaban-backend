@@ -136,4 +136,61 @@ Quy tắc ứng xử và nghiệp vụ:
       return 'Xin lỗi, tôi gặp sự cố kết nối AI trong giây lát. Bạn vui lòng thử lại sau nhé!';
     }
   }
+
+  async generateListingContent(title: string, category?: string, condition?: string) {
+    const fallbackResponse = {
+      description: `Sản phẩm "${title}" đã qua sử dụng với tình trạng ${condition || 'hoạt động tốt'}. Hàng chính hãng, ngoại hình đẹp, đầy đủ chức năng. Đấu giá minh bạch và giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazaar!`,
+      suggestedStartingPrice: 500000,
+      suggestedBidIncrement: 50000,
+      suggestedBuyNowPrice: 1500000,
+      suggestedLayout: 'standard',
+    };
+
+    if (!this.genAI) return fallbackResponse;
+
+    try {
+      const prompt = `
+Bạn là Trợ lý AI Định giá & Hỗ trợ Người bán Đăng tin Đấu giá Đồ cũ trên nền tảng Bazaar (bazaar.vn).
+Người bán cung cấp thông tin sơ bộ sản phẩm:
+- Tên sản phẩm: ${title}
+- Danh mục: ${category || 'Đồ cũ cá nhân'}
+- Tình trạng: ${condition || 'Đã qua sử dụng'}
+
+Hãy phân tích giá trị thị trường hàng đồ cũ tại Việt Nam và sinh ra định dạng JSON hợp lệ duy nhất (không chứa các thẻ bọc markdown khác) theo cấu trúc:
+{
+  "description": "Bài viết mô tả chi tiết sản phẩm chuẩn SEO (từ 150 - 250 từ), trình bày lôi cuốn, nêu bật ưu điểm, độ mới, sự an tâm khi đấu giá và lời kêu gọi đặt giá.",
+  "suggestedStartingPrice": <số nguyên khởi điểm hợp lý theo VNĐ, ví dụ 500000>,
+  "suggestedBidIncrement": <số nguyên bước giá hợp lý theo VNĐ, ví dụ 20000>,
+  "suggestedBuyNowPrice": <số nguyên giá mua ngay hợp lý theo VNĐ, ví dụ 1200000>,
+  "suggestedLayout": "standard"
+}
+`;
+
+      const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+      for (const modelName of candidateModels) {
+        try {
+          const model = this.genAI.getGenerativeModel({ model: modelName });
+          const res = await model.generateContent(prompt);
+          const text = res.response.text().trim();
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            return {
+              description: parsed.description || fallbackResponse.description,
+              suggestedStartingPrice: Number(parsed.suggestedStartingPrice) || fallbackResponse.suggestedStartingPrice,
+              suggestedBidIncrement: Number(parsed.suggestedBidIncrement) || fallbackResponse.suggestedBidIncrement,
+              suggestedBuyNowPrice: Number(parsed.suggestedBuyNowPrice) || fallbackResponse.suggestedBuyNowPrice,
+              suggestedLayout: ['standard', 'full_banner', 'grid_gallery'].includes(parsed.suggestedLayout) ? parsed.suggestedLayout : 'standard',
+            };
+          }
+        } catch (err) {
+          console.warn(`Model ${modelName} failed in generateListingContent`, err);
+        }
+      }
+    } catch (e) {
+      console.error('generateListingContent error:', e);
+    }
+
+    return fallbackResponse;
+  }
 }
