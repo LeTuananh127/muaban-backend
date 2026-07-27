@@ -138,11 +138,43 @@ Quy tắc ứng xử và nghiệp vụ:
   }
 
   async generateListingContent(title: string, category?: string, condition?: string) {
-    // Advanced dynamic valuation matrix for Vietnamese second-hand market
+    // 1. Layer 1: Query past successful sales from PostgreSQL database if available
+    let historicalContext = '';
+    try {
+      const keywords = title.trim().split(/\s+/).filter((w) => w.length > 2).slice(0, 3);
+      if (keywords.length > 0) {
+        const pastAuctions = await this.prisma.auction.findMany({
+          where: {
+            status: 'ENDED',
+            product: {
+              OR: keywords.map((kw) => ({
+                title: { contains: kw, mode: 'insensitive' },
+              })),
+            },
+          },
+          select: {
+            currentPrice: true,
+            startingPrice: true,
+            product: { select: { title: true } },
+          },
+          take: 5,
+        });
+
+        if (pastAuctions.length > 0) {
+          const prices = pastAuctions.map((a) => Number(a.currentPrice || a.startingPrice));
+          const avgPrice = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+          historicalContext = `Dữ liệu lịch sử giao dịch đấu giá thành công trên CSDL Bazaar: Đã có ${pastAuctions.length} sản phẩm tương tự chốt thành công với mức giá trung bình là ${avgPrice.toLocaleString('vi-VN')} VNĐ.`;
+        }
+      }
+    } catch (e) {
+      console.warn('Error querying historical auction prices:', e);
+    }
+
+    // 2. Layer 2: Advanced dynamic fallback valuation matrix for Vietnamese second-hand market
     const titleLower = title.toLowerCase();
     let estimatedMarketValue = 5000000;
 
-    // 1. Smart Regex Parser for iPhone series (iPhone 16, 15, 14, 13, 12...)
+    // Smart Regex Parser for iPhone series (iPhone 16, 15, 14, 13, 12...)
     const iphoneMatch = titleLower.match(/iphone\s*(\d+)(\s*pro\s*max|\s*pro|\s*plus)?/i);
     const samsungMatch = titleLower.match(/s2(\d+)\s*(ultra|plus)?/i);
 
@@ -229,15 +261,15 @@ Người bán cung cấp thông tin sản phẩm:
 - Tên sản phẩm: ${title}
 - Danh mục: ${category || 'Đồ cũ cá nhân'}
 - Tình trạng: ${condition || 'Đã qua sử dụng'}
+${historicalContext ? `- ${historicalContext}` : ''}
 
-HƯỚNG DẪN ĐỊNH GIÁ THỰC TẾ TẠI VIỆT NAM (RẤT QUAN TRỌNG):
-1. Phân tích chính xác tên sản phẩm "${title}" bao gồm thương hiệu, model, dung lượng ổ cứng (1TB, 512GB), kích thước (16 inch, 14 inch) để định giá thị trường đồ cũ thực tế tại Việt Nam hiện tại.
-   - Ví dụ: MacBook Pro 16 inch M1 Pro 1TB cũ có giá thị trường thực tế khoảng 30.000.000đ - 33.000.000đ.
-   - Ví dụ: iPhone 14 Pro Max 256GB cũ khoảng 18.000.000đ.
-2. Tính toán 3 mức giá hợp lý theo nguyên lý Đấu giá Anh:
+HƯỚNG DẪN ĐỊNH GIÁ AI THÔNG MINH TẠI VIỆT NAM (RẤT QUAN TRỌNG):
+1. Vận dụng tri thức thực tế của bạn về thị trường đồ cũ tại Việt Nam để phân tích chính xác món đồ "${title}" (kích thước, năm ra mắt, cấu hình, dung lượng, thương hiệu).
+2. Nếu có dữ liệu lịch sử giao dịch thành công trên CSDL Bazaar ở trên, hãy kết hợp tham khảo để đề xuất mức giá sát nhất với thực tế giao dịch của hệ thống.
+3. Tính toán 3 mức giá hợp lý theo nguyên lý Đấu giá Anh:
    - "suggestedStartingPrice": Giá khởi điểm bằng khoảng 40% - 50% giá thị trường đồ cũ (đặt thấp hơn để thu hút lượt đặt giá sôi nổi).
    - "suggestedBidIncrement": Bước giá từ 50,000đ đến 200,000đ tùy giá trị sản phẩm.
-   - "suggestedBuyNowPrice": Giá mua ngay bằng khoảng 95% - 100% giá trị thị trường thực tế đồ cũ.
+   - "suggestedBuyNowPrice": Giá mua ngay bằng khoảng 95% - 100% giá trị thị trường thực tế đồ cũ tại Việt Nam.
    - "suggestedLayout": Chọn "full_banner" đối với đồ công nghệ/hàng hiệu cao cấp (>10 triệu), "grid_gallery" đối với bộ sưu tập/thời trang, hoặc "standard".
 
 Hãy trả về định dạng JSON hợp lệ duy nhất (không bọc trong thẻ markdown khác) với cấu trúc:
