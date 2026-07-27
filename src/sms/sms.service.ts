@@ -24,7 +24,47 @@ export class SmsService {
     const formattedPhone = this.formatPhone(phone);
     const body = `[AuctionHub] Ma OTP xac thuc so dien thoai cua ban la: ${otp}. Ma co hieu luc trong 5 phut.`;
 
-    // 1. Ưu tiên gửi qua SpeedSMS.vn 2FA API
+    // 0. Ưu tiên gửi qua Zalo ZNS API nếu có ZALO_ZNS_ACCESS_TOKEN và ZALO_ZNS_TEMPLATE_ID
+    const zaloToken = process.env.ZALO_ZNS_ACCESS_TOKEN;
+    const zaloTemplateId = process.env.ZALO_ZNS_TEMPLATE_ID;
+    if (zaloToken && zaloTemplateId) {
+      try {
+        let zaloPhone = phone.replace(/\D/g, '');
+        if (zaloPhone.startsWith('0')) {
+          zaloPhone = '84' + zaloPhone.substring(1);
+        }
+        const trackingId = `otp_${Date.now()}`;
+        const res = await fetch('https://business.openapi.zalo.me/message/template', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'access_token': zaloToken,
+          },
+          body: JSON.stringify({
+            phone: zaloPhone,
+            template_id: zaloTemplateId,
+            template_data: {
+              otp,
+              code: otp,
+              pin_code: otp,
+            },
+            tracking_id: trackingId,
+          }),
+        });
+
+        const data: any = await res.json();
+        if (data && data.error === 0) {
+          this.logger.log(`Zalo ZNS OTP sent successfully to ${zaloPhone}. MsgID: ${data.data?.msg_id}`);
+          return true;
+        } else {
+          this.logger.warn(`Zalo ZNS error (${data?.error}): ${data?.message}`);
+        }
+      } catch (err) {
+        this.logger.error('Failed to send Zalo ZNS OTP', err);
+      }
+    }
+
+    // 1. Gửi qua SpeedSMS.vn 2FA API
     const speedSmsToken = process.env.SPEEDSMS_ACCESS_TOKEN || '0roKgxr7lx8gm6ZkVfkQOxiZ-BZ9TOhf';
     const speedSmsAppId = process.env.SPEEDSMS_APP_ID || 'sM3M-XXxWl7AnmFB6yMHDYHtrrKgEfKv';
     if (speedSmsToken && speedSmsAppId) {

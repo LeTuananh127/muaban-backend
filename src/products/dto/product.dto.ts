@@ -50,6 +50,18 @@ export class CreateProductAndAuctionDto {
   @Min(1000)
   bidIncrement?: number;
 
+  @IsNumber()
+  @IsOptional()
+  extendTriggerMinutes?: number;
+
+  @IsNumber()
+  @IsOptional()
+  extendDurationMinutes?: number;
+
+  @IsString()
+  @IsOptional()
+  layoutType?: string;
+
   @IsString()
   @IsNotEmpty()
   endTime: string;
@@ -102,6 +114,18 @@ export class UpdateProductAndAuctionDto {
   @IsOptional()
   @Min(1000)
   bidIncrement?: number;
+
+  @IsNumber()
+  @IsOptional()
+  extendTriggerMinutes?: number;
+
+  @IsNumber()
+  @IsOptional()
+  extendDurationMinutes?: number;
+
+  @IsString()
+  @IsOptional()
+  layoutType?: string;
 
   @IsString()
   @IsOptional()

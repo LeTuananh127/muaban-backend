@@ -9,7 +9,8 @@ export class ProductsService {
   async createListing(createData: CreateProductAndAuctionDto, ownerId: string) {
     const { 
       title, description, images, condition, location, categoryId, 
-      startingPrice, reservePrice, buyNowPrice, shippingCost, bidIncrement, endTime 
+      startingPrice, reservePrice, buyNowPrice, shippingCost, bidIncrement,
+      extendTriggerMinutes, extendDurationMinutes, layoutType, endTime 
     } = createData;
 
     const end = new Date(endTime);
@@ -55,6 +56,9 @@ export class ProductsService {
           buyNowPrice,
           shippingCost,
           bidIncrement: (bidIncrement && bidIncrement >= 1000) ? bidIncrement : 10000,
+          extendTriggerMinutes: extendTriggerMinutes !== undefined ? Number(extendTriggerMinutes) : 2,
+          extendDurationMinutes: extendDurationMinutes !== undefined ? Number(extendDurationMinutes) : 2,
+          layoutType: layoutType || 'standard',
           endTime: end,
           status: 'ACTIVE'
         },
@@ -148,7 +152,8 @@ export class ProductsService {
 
     const {
       title, description, images, condition, location, categoryId,
-      startingPrice, reservePrice, buyNowPrice, shippingCost, bidIncrement, endTime
+      startingPrice, reservePrice, buyNowPrice, shippingCost, bidIncrement,
+      extendTriggerMinutes, extendDurationMinutes, layoutType, endTime
     } = updateData;
 
     if (categoryId) {
@@ -194,6 +199,9 @@ export class ProductsService {
         if (buyNowPrice !== undefined) auctionData.buyNowPrice = buyNowPrice;
         if (shippingCost !== undefined) auctionData.shippingCost = shippingCost;
         if (bidIncrement !== undefined) auctionData.bidIncrement = bidIncrement;
+        if (extendTriggerMinutes !== undefined) auctionData.extendTriggerMinutes = Number(extendTriggerMinutes);
+        if (extendDurationMinutes !== undefined) auctionData.extendDurationMinutes = Number(extendDurationMinutes);
+        if (layoutType !== undefined) auctionData.layoutType = layoutType;
         if (endTime !== undefined) {
           const end = new Date(endTime);
           if (new Date() >= end) {

@@ -186,6 +186,9 @@ model Auction {
   shippingCost    Float?        // Phí vận chuyển
   bidIncrement    Float         @default(10000)
   minTrustScore   Int?          @default(0) // Điểm uy tín người mua tối thiểu (VD: 0, 50, 70, 80, 90)
+  extendTriggerMinutes  Int?      @default(2) // Kích hoạt gia hạn nếu bid trong N phút cuối
+  extendDurationMinutes Int?      @default(2) // Gia hạn thêm N phút
+  layoutType            String?   @default("standard") // standard, full_banner, grid_gallery
   currentWinnerId String?
   startTime       DateTime      @default(now())
   endTime         DateTime

@@ -59,9 +59,14 @@ export class BidsService {
       throw new BadRequestException('Auction has ended');
     }
 
+    const triggerMinutes = (auction as any).extendTriggerMinutes ?? 2;
+    const durationMinutes = (auction as any).extendDurationMinutes ?? 2;
+    const triggerMs = triggerMinutes * 60 * 1000;
+    const durationMs = durationMinutes * 60 * 1000;
+
     const timeRemaining = auction.endTime.getTime() - now.getTime();
-    const shouldExtend = timeRemaining > 0 && timeRemaining < 120000;
-    const newEndTime = shouldExtend ? new Date(now.getTime() + 120000) : auction.endTime;
+    const shouldExtend = triggerMs > 0 && timeRemaining > 0 && timeRemaining < triggerMs;
+    const newEndTime = shouldExtend ? new Date(now.getTime() + durationMs) : auction.endTime;
 
     if (amount < auction.currentPrice + auction.bidIncrement) {
       throw new BadRequestException(`Bid must be at least ${auction.currentPrice + auction.bidIncrement}`);
