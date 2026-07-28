@@ -296,23 +296,24 @@ Người bán cung cấp thông tin sản phẩm:
 ${historicalContext ? `- ${historicalContext}` : ''}
 
 HƯỚNG DẪN VIẾT BÀI MÔ TẢ NỔI BẬT VÀ HẤP DẪN (RẤT QUAN TRỌNG):
-Viết một bài mô tả chi tiết, chuyên nghiệp và cực kỳ thuyết phục (khoảng 150 - 250 từ) gồm 4 phần rõ ràng với biểu tượng cảm xúc (emoji):
-1. 📌 **TỔNG QUAN SẢN PHẨM**: Giới thiệu lôi cuốn về tên sản phẩm, nguồn gốc chính hãng và độ mới.
-2. ✨ **TÌNH TRẠNG & TÍNH NĂNG NỔI BẬT**: Liệt kê chi tiết ngoại hình, độ mượt mà, linh kiện nguyên bản và phụ kiện đi kèm.
-3. 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**: Khẳng định chính sách bao test và bảo vệ giao dịch 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn).
-4. ⚡ **LỜI KÊU GỌI ĐẶT GIÁ**: Kêu gọi người mua hào hứng tham gia đặt giá ngay.
+Viết một bài mô tả chi tiết, chuyên nghiệp và cực kỳ thuyết phục (khoảng 150 - 250 từ).
+TUYỆT ĐỐI KHÔNG ĐÁNH SỐ THỨ TỰ (NHƯ 1., 2., 3., 4. HAY 1), 2), 3)) TRONG TOÀN BỘ BÀI VIẾT!
+Hãy dùng toàn bộ các dấu gạch đầu dòng (-) sạch sẽ kèm biểu tượng emoji:
+
+- 📌 **TỔNG QUAN SẢN PHẨM**: Giới thiệu lôi cuốn về tên sản phẩm, nguồn gốc chính hãng và độ mới.
+- ✨ **TÌNH TRẠNG & TÍNH NĂNG NỔI BẬT**: Liệt kê chi tiết ngoại hình, độ mượt mà, linh kiện nguyên bản và phụ kiện đi kèm.
+- 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**: Khẳng định chính sách bao test và bảo vệ giao dịch 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn).
+- ⚡ **LỜI KÊU GỌI ĐẶT GIÁ**: Kêu gọi người mua hào hứng tham gia đặt giá ngay.
 
 HƯỚNG DẪN ĐỊNH GIÁ AI THÔNG MINH TẠI VIỆT NAM:
-1. Phân tích chính xác tên sản phẩm "${title}" (kích thước, năm ra mắt, cấu hình, dung lượng, thương hiệu).
-2. Định giá 3 mức hợp lý theo nguyên lý Đấu giá Anh:
-   - "suggestedStartingPrice": Giá khởi điểm bằng khoảng 40% - 50% giá thị trường đồ cũ (đặt thấp hơn để kích thích lượt đặt giá sôi nổi).
-   - "suggestedBidIncrement": Bước giá từ 50,000đ đến 200,000đ tùy giá trị sản phẩm.
-   - "suggestedBuyNowPrice": Giá mua ngay bằng khoảng 95% - 100% giá trị thị trường thực tế đồ cũ tại Việt Nam.
-   - "suggestedLayout": Chọn "full_banner" đối với đồ công nghệ/hàng hiệu cao cấp (>10 triệu), "grid_gallery" đối với bộ sưu tập/thời trang, hoặc "standard".
+- "suggestedStartingPrice": Giá khởi điểm bằng khoảng 40% - 50% giá thị trường đồ cũ (đặt thấp hơn để kích thích lượt đặt giá sôi nổi).
+- "suggestedBidIncrement": Bước giá từ 50,000đ đến 200,000đ tùy giá trị sản phẩm.
+- "suggestedBuyNowPrice": Giá mua ngay bằng khoảng 95% - 100% giá trị thị trường thực tế đồ cũ tại Việt Nam.
+- "suggestedLayout": Chọn "full_banner" đối với đồ công nghệ/hàng hiệu cao cấp (>10 triệu), "grid_gallery" đối với bộ sưu tập/thời trang, hoặc "standard".
 
 Hãy trả về định dạng JSON hợp lệ duy nhất (không bọc trong thẻ markdown khác) với cấu trúc:
 {
-  "description": "Bài viết mô tả chi tiết sản phẩm chuẩn SEO (từ 150 - 250 từ), liệt kê tình trạng, phụ kiện, chính sách bao test và lời kêu gọi đặt giá nhiệt tình.",
+  "description": "<nội dung bài viết dùng toàn bộ dấu gạch đầu dòng -, tuyệt đối KHÔNG có số thứ tự 1. 2. 3.>",
   "suggestedStartingPrice": <số nguyên giá khởi điểm tính bằng VNĐ>,
   "suggestedBidIncrement": <số nguyên bước giá tính bằng VNĐ>,
   "suggestedBuyNowPrice": <số nguyên giá mua ngay tính bằng VNĐ>,
@@ -333,9 +334,13 @@ Hãy trả về định dạng JSON hợp lệ duy nhất (không bọc trong th
             const buyNowPrice = Number(parsed.suggestedBuyNowPrice);
             const increment = Number(parsed.suggestedBidIncrement);
 
+            // Clean up any unwanted leading 1. 2. 3. numbers if AI generated them
+            let cleanDescription = (parsed.description || fallbackResponse.description)
+              .replace(/^\s*\d+[\.\)]\s*/gm, '- ');
+
             if (startPrice > 0 && buyNowPrice > startPrice) {
               return {
-                description: parsed.description || fallbackResponse.description,
+                description: cleanDescription,
                 suggestedStartingPrice: startPrice,
                 suggestedBidIncrement: increment || fallbackResponse.suggestedBidIncrement,
                 suggestedBuyNowPrice: buyNowPrice,
