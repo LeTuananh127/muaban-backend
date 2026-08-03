@@ -54,7 +54,22 @@ export class OrdersController {
   }
 
   @Post('refund/:refundId/reject')
-  rejectRefund(@Request() req, @Param('refundId') refundId: string, @Body('note') note?: string) {
-    return this.ordersService.rejectRefund(req.user.userId, refundId, note);
+  rejectRefund(
+    @Request() req,
+    @Param('refundId') refundId: string,
+    @Body('note') note?: string,
+    @Body('images') images?: string[],
+  ) {
+    return this.ordersService.rejectRefund(req.user.userId, refundId, note, images);
+  }
+
+  @Post('refund/:refundId/escalate')
+  escalateDispute(
+    @Request() req,
+    @Param('refundId') refundId: string,
+    @Body('reason') reason?: string,
+    @Body('images') images?: string[],
+  ) {
+    return this.ordersService.escalateDisputeToAdmin(req.user.userId, refundId, reason, images);
   }
 }

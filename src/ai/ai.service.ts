@@ -137,8 +137,29 @@ Quy tắc ứng xử và nghiệp vụ:
     }
   }
 
-  async generateListingContent(title: string, category?: string, condition?: string) {
-    // 1. Layer 1: Query past successful sales from PostgreSQL database if available
+  async generateListingContent(title: string, category?: string, condition?: string, imageUrl?: string) {
+    // 1. Layer 1: Fetch product image buffer for Multimodal Gemini Vision if imageUrl is provided
+    let imagePart: any = null;
+    if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+      try {
+        const response = await fetch(imageUrl);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const base64Data = Buffer.from(arrayBuffer).toString('base64');
+          const mimeType = response.headers.get('content-type') || 'image/jpeg';
+          imagePart = {
+            inlineData: {
+              data: base64Data,
+              mimeType,
+            },
+          };
+        }
+      } catch (err) {
+        console.warn('Failed to fetch image for Gemini Vision:', err);
+      }
+    }
+
+    // 2. Layer 2: Query past successful sales from PostgreSQL database if available
     let historicalContext = '';
     try {
       const keywords = title.trim().split(/\s+/).filter((w) => w.length > 2).slice(0, 3);
@@ -170,7 +191,7 @@ Quy tắc ứng xử và nghiệp vụ:
       console.warn('Error querying historical auction prices:', e);
     }
 
-    // 2. Layer 2: Advanced dynamic fallback valuation matrix for Vietnamese second-hand market
+    // 3. Layer 3: Advanced dynamic fallback valuation matrix for Vietnamese second-hand market
     const titleLower = title.toLowerCase();
     let estimatedMarketValue = 5000000;
 
@@ -292,11 +313,13 @@ Bạn là Trợ lý AI Chuyên gia Marketing & Định giá Sản phẩm Đồ c
 Người bán cung cấp thông tin sản phẩm:
 - Tên sản phẩm: ${title}
 - Danh mục: ${category || 'Đồ cũ cá nhân'}
-- Tình trạng: ${condition || 'Đã qua sử dụng'}
+- Tình trạng/Độ mới: ${condition || 'Đã qua sử dụng'}
+${imagePart ? '- Hình ảnh thị giác (Multimodal Vision): Đã bao gồm ảnh sản phẩm đính kèm để bạn soi trực tiếp ngoại hình' : '- Hình ảnh: Không có ảnh đính kèm'}
 ${historicalContext ? `- ${historicalContext}` : ''}
 
 HƯỚNG DẪN VIẾT BÀI MÔ TẢ NỔI BẬT VÀ HẤP DẪN (RẤT QUAN TRỌNG):
 Viết một bài mô tả chi tiết, chuyên nghiệp và cực kỳ thuyết phục (khoảng 150 - 250 từ).
+${imagePart ? 'Hãy đối soát hình ảnh sản phẩm đính kèm để mô tả đúng màu sắc, ngoại hình và chi tiết nổi bật thị giác.' : ''}
 TUYỆT ĐỐI KHÔNG ĐÁNH SỐ THỨ TỰ (NHƯ 1., 2., 3., 4. HAY 1), 2), 3)) TRONG TOÀN BỘ BÀI VIẾT!
 Hãy dùng toàn bộ các dấu gạch đầu dòng (-) sạch sẽ kèm biểu tượng emoji:
 
@@ -325,7 +348,10 @@ Hãy trả về định dạng JSON hợp lệ duy nhất (không bọc trong th
       for (const modelName of candidateModels) {
         try {
           const model = this.genAI.getGenerativeModel({ model: modelName });
-          const res = await model.generateContent(prompt);
+          const contentParts: any[] = [prompt];
+          if (imagePart) contentParts.push(imagePart);
+
+          const res = await model.generateContent(contentParts);
           const text = res.response.text().trim();
           const jsonMatch = text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {

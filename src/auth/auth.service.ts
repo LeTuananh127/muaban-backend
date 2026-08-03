@@ -127,6 +127,7 @@ export class AuthService {
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
     const user = await this.usersService.findByEmail(forgotPasswordDto.email);
     if (!user) {
+      // Bảo mật thông tin: luôn trả về cùng thông điệp để tránh tấn công dò email
       return { message: 'If your email exists, a reset token has been generated.' };
     }
 
@@ -135,12 +136,17 @@ export class AuthService {
       data: {
         userId: user.id,
         token: resetToken,
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // Thời hạn 15 phút theo UC-03
       },
     });
 
+    // Gửi email khôi phục mật khẩu không chặn luồng xử lý chính
+    this.mailService.sendPasswordResetEmail(user.email, user.name, resetToken)
+      .then(() => console.log(`[PASSWORD RESET EMAIL SENT] to ${user.email}`))
+      .catch((err) => console.error('Failed to send password reset email:', err));
+
     return {
-      message: 'Password reset token generated',
+      message: 'Password reset token generated and sent to email.',
       resetToken,
     };
   }

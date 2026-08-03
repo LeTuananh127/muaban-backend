@@ -342,7 +342,7 @@ export class OrdersService {
     return this.prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
   }
 
-  async rejectRefund(sellerId: string, refundId: string, note?: string) {
+  async rejectRefund(sellerId: string, refundId: string, note?: string, sellerImages?: string[]) {
     const refund = await this.prisma.refundRequest.findUnique({ where: { id: refundId } });
     if (!refund) throw new NotFoundException('Refund request not found');
     if (refund.sellerId !== sellerId) throw new ForbiddenException('Only the seller can reject this refund');
@@ -351,15 +351,59 @@ export class OrdersService {
     await this.prisma.$transaction(async (tx) => {
       await tx.refundRequest.update({
         where: { id: refundId },
-        data: { status: 'REJECTED', processedAt: new Date(), processedBy: sellerId, note }
+        data: {
+          status: 'REJECTED',
+          processedAt: new Date(),
+          processedBy: sellerId,
+          note: note || 'Người bán từ chối yêu cầu hoàn tiền',
+        },
       });
+      // Người bán từ chối -> Đơn hàng cập nhật trạng thái REFUND_REJECTED (Chưa chuyển ngay sang DISPUTED)
+      try {
+        await tx.order.update({
+          where: { id: refund.orderId },
+          data: { status: 'REFUND_REJECTED' as any },
+        });
+      } catch (_) {
+        // Fallback nếu enum schema Prisma chưa có REFUND_REJECTED
+      }
+    });
+
+    return {
+      message: 'Người bán đã từ chối yêu cầu hoàn tiền. Người mua có quyền khiếu nại lên Admin nếu không đồng ý.',
+      refundId,
+    };
+  }
+
+  async escalateDisputeToAdmin(buyerId: string, refundId: string, reason?: string, buyerImages?: string[]) {
+    const refund = await this.prisma.refundRequest.findUnique({ where: { id: refundId } });
+    if (!refund) throw new NotFoundException('Refund request not found');
+    if (refund.buyerId !== buyerId) throw new ForbiddenException('Only the buyer can escalate this dispute');
+    if (refund.status !== 'REJECTED') {
+      throw new BadRequestException('Chỉ có thể khiếu nại lên Admin sau khi Người bán từ chối yêu cầu Refund');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.refundRequest.update({
+        where: { id: refundId },
+        data: {
+          status: 'REJECTED',
+          note: reason ? `[Khiếu nại Admin] ${reason}` : refund.note,
+          images: buyerImages && buyerImages.length > 0 ? buyerImages : refund.images,
+        },
+      });
+
+      // Khi người mua không đồng ý và khiếu nại -> Đơn hàng mới chính thức đóng băng DISPUTED cho Admin xử lý
       await tx.order.update({
         where: { id: refund.orderId },
-        data: { status: 'DISPUTED' }
+        data: { status: 'DISPUTED' },
       });
     });
 
-    return { success: true };
+    return {
+      message: 'Đã gửi khiếu nại lên Admin thành công. Đơn hàng đang được đóng băng bảo hộ chờ Admin phán quyết.',
+      orderId: refund.orderId,
+    };
   }
 
   async adminApproveDispute(orderId: string, note?: string) {
@@ -369,6 +413,8 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException('Order not found');
     if (order.status !== 'DISPUTED') throw new BadRequestException('Order is not in disputed status');
+
+    const decisionReason = note || 'Admin phán quyết Chấp nhận Refund 100% cho Người mua sau khi thẩm định bằng chứng 2 bên.';
 
     // Refund escrow
     if (order.escrow) {
@@ -432,15 +478,15 @@ export class OrdersService {
       }
     }
 
-    // Update refund request status if any
+    // Update refund request status and log explicit Admin decision reason
     const latestRefundRequest = await this.prisma.refundRequest.findFirst({
-      where: { orderId, status: 'REJECTED' },
+      where: { orderId },
       orderBy: { createdAt: 'desc' },
     });
     if (latestRefundRequest) {
       await this.prisma.refundRequest.update({
         where: { id: latestRefundRequest.id },
-        data: { status: 'APPROVED', note: `Admin phân xử hoàn tiền: ${note ?? ''}` },
+        data: { status: 'APPROVED', note: `[Phán quyết Admin - CHẤP NHẬN REFUND]: ${decisionReason}` },
       });
     }
 
@@ -458,6 +504,8 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Order not found');
     if (order.status !== 'DISPUTED') throw new BadRequestException('Order is not in disputed status');
 
+    const decisionReason = note || 'Admin phán quyết Bác bỏ Khiếu nại, Giải ngân cho Người bán sau khi thẩm định bằng chứng 2 bên.';
+
     // Release escrow to seller
     if (order.escrow) {
       try {
@@ -467,7 +515,7 @@ export class OrdersService {
       }
     }
 
-    // Update refund request status to rejected
+    // Update refund request status to rejected with explicit Admin decision reason
     const latestRefundRequest = await this.prisma.refundRequest.findFirst({
       where: { orderId },
       orderBy: { createdAt: 'desc' },
@@ -475,7 +523,7 @@ export class OrdersService {
     if (latestRefundRequest) {
       await this.prisma.refundRequest.update({
         where: { id: latestRefundRequest.id },
-        data: { note: `Admin bác bỏ khiếu nại: ${note ?? ''}` },
+        data: { note: `[Phán quyết Admin - BÁC BỎ KHIẾU NẠI]: ${decisionReason}` },
       });
     }
 

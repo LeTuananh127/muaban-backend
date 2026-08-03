@@ -10,6 +10,7 @@ interface GenerateListingDto {
   title: string;
   category?: string;
   condition?: string;
+  imageUrl?: string;
 }
 
 @Controller('ai')
@@ -29,6 +30,6 @@ export class AiController {
   @Post('generate-listing')
   @HttpCode(HttpStatus.OK)
   async generateListing(@Body() body: GenerateListingDto) {
-    return this.aiService.generateListingContent(body.title, body.category, body.condition);
+    return this.aiService.generateListingContent(body.title, body.category, body.condition, body.imageUrl);
   }
 }

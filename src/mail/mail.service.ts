@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import * as dns from 'dns';
+import { PrismaService } from '../prisma/prisma.service';
 
 try {
   dns.setDefaultResultOrder('ipv4first');
@@ -11,7 +12,7 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   private transporter: nodemailer.Transporter | null = null;
 
-  constructor() {
+  constructor(@Optional() private prisma?: PrismaService) {
     const user = 'letuananh1207204@gmail.com';
     const pass = 'ycidtukrduwjcbbh';
 
@@ -33,7 +34,28 @@ export class MailService {
     }
   }
 
-  private async sendMail(to: string, subject: string, html: string) {
+  private async isEmailNotificationEnabled(toEmail: string): Promise<boolean> {
+    if (!this.prisma) return true;
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { email: toEmail },
+        select: { emailNotifications: true },
+      });
+      if (user && user.emailNotifications === false) {
+        return false;
+      }
+    } catch (_) {}
+    return true;
+  }
+
+  private async sendMail(to: string, subject: string, html: string, isSystemCritical: boolean = false) {
+    if (!isSystemCritical) {
+      const isEnabled = await this.isEmailNotificationEnabled(to);
+      if (!isEnabled) {
+        this.logger.log(`[EMAIL SKIPPED] User ${to} has disabled email notifications.`);
+        return false;
+      }
+    }
     // 1. ƯU TIÊN CAO NHẤT: Brevo HTTP REST API (Port 443 HTTPS)
     //    - Gửi được tới MỌI email trên thế giới (không bị giới hạn domain)
     //    - Không bị Render firewall chặn (port 443)
@@ -154,7 +176,7 @@ export class MailService {
         <p style="font-size: 12px; color: #999; text-align: center;">Bazaar (bazaar.vn) - Ứng Dụng Bán & Mua Đồ Cũ Bằng Đấu Giá</p>
       </div>
     `;
-    return this.sendMail(toEmail, subject, html);
+    return this.sendMail(toEmail, subject, html, true);
   }
 
   async sendOutbidNotification(toEmail: string, userName: string, auctionTitle: string, newPrice: number, auctionId: string) {
@@ -211,5 +233,27 @@ export class MailService {
       </div>
     `;
     return this.sendMail(toEmail, subject, html);
+  }
+
+  async sendPasswordResetEmail(toEmail: string, userName: string, token: string) {
+    const appUrl = process.env.FRONTEND_URL || 'https://bazaar.vn';
+    const resetLink = `${appUrl}/reset-password?token=${token}`;
+    const subject = '🔑 [Bazaar] Yêu cầu khôi phục mật khẩu tài khoản';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
+        <h2 style="color: #7c3aed; text-align: center;">Khôi phục mật khẩu tài khoản</h2>
+        <p>Xin chào <strong>${userName}</strong>,</p>
+        <p>Bạn nhận được email này vì hệ thống ghi nhận yêu cầu khôi phục mật khẩu từ tài khoản của bạn tại Bazaar (bazaar.vn).</p>
+        <p>Vui lòng bấm vào nút bên dưới để tiến hành đổi mật khẩu mới (Liên kết này có hiệu lực trong vòng 15 phút):</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="background: linear-gradient(135deg, #7c3aed, #c026d3); color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 8px; display: inline-block;">Khôi phục mật khẩu</a>
+        </div>
+        <p style="color: #666; font-size: 13px;">Hoặc copy đường dẫn này paste vào trình duyệt: <a href="${resetLink}">${resetLink}</a></p>
+        <p style="color: #ff3b30; font-size: 13px; font-weight: bold;">Lưu ý: Nếu bạn không yêu cầu khôi phục mật khẩu, vui lòng bỏ qua email này hoặc đổi mật khẩu ngay để bảo mật tài khoản.</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #999; text-align: center;">Bazaar (bazaar.vn) - Ứng Dụng Bán & Mua Đồ Cũ Bằng Đấu Giá</p>
+      </div>
+    `;
+    return this.sendMail(toEmail, subject, html, true);
   }
 }

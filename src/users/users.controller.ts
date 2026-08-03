@@ -29,8 +29,18 @@ export class UsersController {
     @Request() req,
     @Body('name') name?: string,
     @Body('avatar') avatar?: string,
+    @Body('emailNotifications') emailNotifications?: boolean,
   ) {
-    return this.usersService.updateProfile(req.user.userId, { name, avatar });
+    return this.usersService.updateProfile(req.user.userId, { name, avatar, emailNotifications });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('email-notifications/toggle')
+  async toggleEmailNotifications(
+    @Request() req,
+    @Body('enabled') enabled: boolean,
+  ) {
+    return this.usersService.toggleEmailNotifications(req.user.userId, enabled);
   }
 
   @UseGuards(JwtAuthGuard)
