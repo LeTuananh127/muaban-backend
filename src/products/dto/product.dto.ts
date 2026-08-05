@@ -62,6 +62,10 @@ export class CreateProductAndAuctionDto {
   @IsOptional()
   layoutType?: string;
 
+  @IsNumber()
+  @IsOptional()
+  minTrustScore?: number;
+
   @IsString()
   @IsNotEmpty()
   endTime: string;
@@ -126,6 +130,10 @@ export class UpdateProductAndAuctionDto {
   @IsString()
   @IsOptional()
   layoutType?: string;
+
+  @IsNumber()
+  @IsOptional()
+  minTrustScore?: number;
 
   @IsString()
   @IsOptional()
