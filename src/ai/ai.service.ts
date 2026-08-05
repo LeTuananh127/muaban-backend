@@ -105,37 +105,61 @@ Quy tắc ứng xử và nghiệp vụ:
 5. Trả lời ngắn gọn, tập trung vào câu hỏi, tránh dài dòng lan man.
 `;
 
-      // Array of candidate models for robust fallback
-      const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    // Array of candidate models for robust fallback
+    const candidateModels = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-pro'];
 
-      for (const modelName of candidateModels) {
-        try {
-          const model = this.genAI.getGenerativeModel({
-            model: modelName,
-            systemInstruction,
-          });
+    for (const modelName of candidateModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction,
+        });
 
-          const chat = model.startChat({
-            history: history.map((h) => ({
-              role: h.role,
-              parts: [{ text: h.text }],
-            })),
-          });
+        const chat = model.startChat({
+          history: history.map((h) => ({
+            role: h.role,
+            parts: [{ text: h.text }],
+          })),
+        });
 
-          const result = await chat.sendMessage(message);
-          return result.response.text();
-        } catch (modelErr) {
-          console.warn(`Model ${modelName} failed, trying fallback...`, modelErr);
-          continue;
-        }
+        const result = await chat.sendMessage(message);
+        return result.response.text();
+      } catch (modelErr) {
+        console.warn(`Model ${modelName} failed, trying fallback...`, modelErr?.message || modelErr);
+        continue;
       }
-
-      throw new Error('All Gemini model candidates failed');
-    } catch (error) {
-      console.error('Gemini API Error:', error);
-      return 'Xin lỗi, tôi gặp sự cố kết nối AI trong giây lát. Bạn vui lòng thử lại sau nhé!';
     }
+
+    // Smart Fallback Assistant Response if Gemini API Key is invalid or expired
+    const lowerMsg = message.toLowerCase();
+    if (lowerMsg.includes('đăng') || lowerMsg.includes('bán') || lowerMsg.includes('tạo')) {
+      return (
+        '🤖 **Hướng dẫn Đăng bán Đấu giá Đồ cũ trên Bazaar**:\n\n' +
+        '1️⃣ **Bước 1**: Đăng nhập tài khoản Seller.\n' +
+        '2️⃣ **Bước 2**: Xác minh danh tính người bán (CCCD) tại trang Cá nhân / KYC.\n' +
+        '3️⃣ **Bước 3**: Truy cập trang [Đăng sản phẩm mới](/create-listing).\n' +
+        '4️⃣ **Bước 4**: Tải ảnh đồ cũ, nhập giá khởi điểm, bước giá và thiết lập thời gian kết thúc đấu giá.'
+      );
+    } else if (lowerMsg.includes('phí') || lowerMsg.includes('tiền')) {
+      return (
+        '🤖 **Chính sách Phí dịch vụ Sàn Bazaar**:\n\n' +
+        '• **Người mua**: Miễn phí 100% giao dịch khi tham gia đấu giá.\n' +
+        '• **Người bán**: Phí sàn là **5%** trên tổng giá trị giao dịch thành công (chỉ trích trừ khi đơn hàng hoàn tất).'
+      );
+    } else if (lowerMsg.includes('escrow') || lowerMsg.includes('cọc') || lowerMsg.includes('ví')) {
+      return (
+        '🤖 **Cơ chế Ký quỹ Ví Escrow Hold**:\n\n' +
+        'Khi đặt giá, hệ thống sẽ tạm giữ 10% tiền cọc trong Ví Escrow. ' +
+        'Nếu có người khác đặt giá cao hơn, tiền cọc 100% sẽ tự động hoàn trả về Ví khả dụng của bạn lập tức!'
+      );
+    }
+
+    return 'Xin lỗi, tôi đang bảo trì kết nối AI Gemini API. Bạn vui lòng kiểm tra GEMINI_API_KEY từ https://aistudio.google.com/app/apikey và thử lại nhé!';
+  } catch (error) {
+    console.error('Gemini API Error:', error);
+    return 'Xin lỗi, tôi đang gặp sự cố kết nối AI. Bạn vui lòng thử lại sau nhé!';
   }
+}
 
   async generateListingContent(title: string, category?: string, condition?: string, imageUrl?: string) {
     // 1. Layer 1: Fetch product image buffer for Multimodal Gemini Vision if imageUrl is provided
