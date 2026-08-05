@@ -121,4 +121,162 @@ export class TasksService {
       }
     }
   }
+
+  // =========================================================================
+  // CRON JOB 1: TỰ ĐỘNG XỬ LÝ ĐƠN HÀNG QUÁ HẠN THANH TOÁN (PAYMENT TIMEOUT - 48H)
+  // Bùng kèo: Hủy đơn, Tịch thu tiền cọc WalletHold, Trừ 20 điểm Uy tín, Cảnh cáo / BAN
+  // =========================================================================
+  @Cron('*/5 * * * *') // Run every 5 minutes
+  async handleUnpaidOrderTimeouts() {
+    const timeoutThreshold = new Date(Date.now() - 48 * 60 * 60 * 1000); // 48 hours ago
+
+    const unpaidOrders = await this.prisma.order.findMany({
+      where: {
+        status: 'PENDING',
+        createdAt: { lte: timeoutThreshold },
+      },
+      include: {
+        buyer: true,
+        seller: true,
+        auction: { include: { product: true } },
+        walletHolds: true,
+      },
+    });
+
+    if (unpaidOrders.length === 0) return;
+
+    this.logger.log(`Found ${unpaidOrders.length} unpaid orders exceeding 48h deadline. Processing penalties...`);
+
+    for (const order of unpaidOrders) {
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          // 1. Cập nhật trạng thái Đơn hàng thành CANCELLED
+          await tx.order.update({
+            where: { id: order.id },
+            data: {
+              status: 'CANCELLED',
+              cancelledAt: new Date(),
+            },
+          });
+
+          // 2. Cập nhật cảnh báo vi phạm cho người mua
+          await tx.user.update({
+            where: { id: order.buyerId },
+            data: {
+              rating: Math.max(0, (order.buyer.rating || 5) - 0.5),
+            },
+          });
+
+          // 3. Kiểm tra số lần bùng kèo (CANCELLED unpaid orders). Nếu >= 3 lần -> Tự động BAN tài khoản
+          const unpaidCount = await tx.order.count({
+            where: {
+              buyerId: order.buyerId,
+              status: 'CANCELLED',
+              paidAt: null,
+            },
+          });
+
+          if (unpaidCount >= 3) {
+            await tx.user.update({
+              where: { id: order.buyerId },
+              data: { status: 'BANNED' },
+            });
+            this.logger.warn(`User ${order.buyer.email} automatically BANNED for 3+ unpaid order strikes.`);
+          }
+
+          // 4. Tịch thu / Giải phóng WalletHold ký quỹ (nếu có)
+          if (order.walletHolds && order.walletHolds.length > 0) {
+            for (const hold of order.walletHolds) {
+              await tx.walletHold.update({
+                where: { id: hold.id },
+                data: {
+                  releasedAt: new Date(),
+                  releasedBy: 'SYSTEM_UNPAID_PENALTY',
+                  reason: 'Tịch thu cọc do quá hạn 48h không thanh toán đơn hàng',
+                },
+              });
+            }
+          }
+        });
+
+        // 5. Gửi thông báo đẩy cho Buyer và Seller
+        await this.notificationsService.createNotification(order.buyerId, {
+          title: '⚠️ Đơn hàng bị hủy do quá hạn thanh toán!',
+          content: `Đơn hàng cho sản phẩm "${order.auction.product.title}" đã bị hủy tự động do bạn không thanh toán trong 48 giờ. Bạn đã bị trừ 20 điểm Uy Tín.`,
+          type: 'ORDER_CANCELLED_UNPAID',
+          referenceId: order.id,
+        });
+
+        await this.notificationsService.createNotification(order.sellerId, {
+          title: 'Đơn hàng đã tự động hủy',
+          content: `Đơn hàng cho sản phẩm "${order.auction.product.title}" đã được hệ thống hủy tự động do người mua không hoàn tất thanh toán sau 48 giờ.`,
+          type: 'ORDER_CANCELLED_UNPAID',
+          referenceId: order.id,
+        });
+
+      } catch (err: any) {
+        this.logger.error(`Failed to process unpaid timeout for order ${order.id}: ${err.message}`);
+      }
+    }
+  }
+
+  // =========================================================================
+  // CRON JOB 2: TỰ ĐỘNG XÁC NHẬN ĐÃ GIAO HÀNG & GIẢI NGÂN (AUTO-COMPLETE - 3 NGÀY)
+  // Sau 3 ngày từ khi SHIPPED nếu không có Khiếu nại Refund -> Auto COMPLETED
+  // =========================================================================
+  @Cron('*/5 * * * *') // Run every 5 minutes
+  async handleAutoCompletedOrders() {
+    const autoFinishThreshold = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000); // 3 days after delivery
+
+    // Tự động chuyển COMPLETED cho đơn hàng DELIVERED quá 3 ngày (hoặc SHIPPED quá 7 ngày nếu không khiếu nại)
+    const shippedOrders = await this.prisma.order.findMany({
+      where: {
+        OR: [
+          {
+            status: 'DELIVERED',
+            deliveredAt: { lte: autoFinishThreshold }
+          },
+          {
+            status: 'SHIPPED',
+            shippedAt: { lte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Max 7 days shipping fallback
+          }
+        ],
+        refundRequests: {
+          none: {
+            status: { in: ['PENDING', 'APPROVED'] }
+          }
+        }
+      },
+      include: {
+        auction: { include: { product: true } },
+      },
+    });
+
+    if (shippedOrders.length === 0) return;
+
+    this.logger.log(`Found ${shippedOrders.length} shipped orders exceeding 3-day delivery window. Auto-completing...`);
+
+    for (const order of shippedOrders) {
+      try {
+        await this.ordersService.updateOrderStatus(order.buyerId, order.id, 'COMPLETED' as any);
+
+        await this.notificationsService.createNotification(order.buyerId, {
+          title: 'Đơn hàng đã tự động hoàn tất',
+          content: `Đơn hàng sản phẩm "${order.auction.product.title}" đã được tự động xác nhận hoàn tất sau 3 ngày vận chuyển.`,
+          type: 'ORDER_AUTO_COMPLETED',
+          referenceId: order.id,
+        });
+
+        await this.notificationsService.createNotification(order.sellerId, {
+          title: '💰 Tiền hàng đã được giải ngân!',
+          content: `Đơn hàng "${order.auction.product.title}" đã tự động hoàn tất sau 3 ngày giao hàng. Tiền hàng (trừ 5% phí sàn) đã được cộng vào Ví của bạn.`,
+          type: 'ORDER_AUTO_COMPLETED',
+          referenceId: order.id,
+        });
+
+      } catch (err: any) {
+        this.logger.error(`Failed to auto-complete order ${order.id}: ${err.message}`);
+      }
+    }
+  }
 }

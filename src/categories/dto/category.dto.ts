@@ -13,3 +13,18 @@ export class CreateCategoryDto {
   @IsOptional()
   image?: string;
 }
+
+export class UpdateCategoryDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  slug?: string;
+
+  @IsString()
+  @IsOptional()
+  image?: string;
+}
+

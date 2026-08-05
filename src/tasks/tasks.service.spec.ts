@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('TasksService', () => {
   let service: TasksService;
@@ -16,6 +17,10 @@ describe('TasksService', () => {
         },
         {
           provide: OrdersService,
+          useValue: {},
+        },
+        {
+          provide: NotificationsService,
           useValue: {},
         },
       ],

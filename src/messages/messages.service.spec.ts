@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MessagesService } from './messages.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MessagesGateway } from './messages.gateway';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -11,6 +12,10 @@ describe('MessagesService', () => {
         MessagesService,
         {
           provide: PrismaService,
+          useValue: {},
+        },
+        {
+          provide: MessagesGateway,
           useValue: {},
         },
       ],
