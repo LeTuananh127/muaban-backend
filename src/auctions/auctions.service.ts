@@ -82,7 +82,8 @@ export class AuctionsService {
   }
 
   async findOne(id: string) {
-    const auction = await this.prisma.auction.findUnique({
+    // Thử tìm bằng auction ID trước, nếu không có thì thử tìm bằng product ID
+    let auction = await this.prisma.auction.findUnique({
       where: { id },
       include: {
         product: {
@@ -110,12 +111,43 @@ export class AuctionsService {
       },
     });
 
+    // Nếu không tìm thấy bằng auction ID → thử tìm theo product ID
+    if (!auction) {
+      auction = await this.prisma.auction.findFirst({
+        where: { productId: id },
+        include: {
+          product: {
+            include: {
+              owner: {
+                select: {
+                  id: true,
+                  name: true,
+                  avatar: true,
+                  rating: true,
+                  totalReviews: true,
+                },
+              },
+              category: true,
+            },
+          },
+          bids: {
+            orderBy: { amount: 'desc' },
+            take: 10,
+            include: {
+              user: { select: { id: true, name: true, avatar: true } },
+            },
+          },
+          _count: { select: { bids: true } },
+        },
+      });
+    }
+
     if (!auction) {
       throw new NotFoundException('Auction not found');
     }
 
     await this.prisma.auction.update({
-      where: { id },
+      where: { id: auction.id },
       data: { views: { increment: 1 } },
     });
 
