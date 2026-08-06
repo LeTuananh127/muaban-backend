@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getPlatformFeePercent } from '../escrow/escrow.service';
 
 @Injectable()
 export class AiService {
@@ -79,6 +80,7 @@ export class AiService {
         })
         .join('\n');
 
+      const feePercent = getPlatformFeePercent();
       const systemInstruction = `
 Bạn là "Muabandocuui AI Assistant", trợ lý ảo thông minh và thân thiện của ứng dụng bán và mua đồ cũ bằng đấu giá Muabandocuui.
 Nhiệm vụ của bạn là giải đáp thắc mắc của người dùng về cách bán và mua đồ cũ bằng đấu giá, hỗ trợ tìm kiếm sản phẩm đồ cũ và giải thích quy trình ký quỹ Escrow một cách ngắn gọn, súc tích bằng Tiếng Việt.
@@ -100,7 +102,7 @@ Quy tắc ứng xử và nghiệp vụ:
    - **Đấu giá trực tiếp (Bidding)**: Đặt mức giá mới cao hơn giá hiện tại + bước giá tối thiểu. Số dư cọc tương ứng sẽ tạm giữ trong Ví ký quỹ (WalletHold).
    - **Ví ký quỹ cọc (Escrow Wallet Hold)**: Khóa cọc tự động khi đặt giá, tự động hoàn trả 100% tiền cọc ngay khi bị người khác đè giá cao hơn.
    - **Chống canh phút chót (Dynamic Anti-sniping)**: Tự động cộng thêm thời gian nếu có lượt đặt giá hợp lệ ở những phút cuối phiên đấu giá.
-   - **Phí sàn**: Người bán chịu 5% phí giao dịch khi đấu giá thành công (chuyển sang trạng thái Hoàn thành). Người mua hoàn toàn miễn phí giao dịch.
+   - **Phí sàn**: Người bán chịu ${feePercent}% phí giao dịch khi đấu giá thành công (chuyển sang trạng thái Hoàn thành). Người mua hoàn toàn miễn phí giao dịch.
    - **Xử lý khiếu nại hoàn tiền (Refund)**: Người mua có quyền mở yêu cầu hoàn tiền nếu đồ cũ nhận được không đúng như mô tả.
 5. Trả lời ngắn gọn, tập trung vào câu hỏi, tránh dài dòng lan man.
 `;
@@ -144,7 +146,7 @@ Quy tắc ứng xử và nghiệp vụ:
       return (
         '🤖 **Chính sách Phí dịch vụ Sàn Bazaar**:\n\n' +
         '• **Người mua**: Miễn phí 100% giao dịch khi tham gia đấu giá.\n' +
-        '• **Người bán**: Phí sàn là **5%** trên tổng giá trị giao dịch thành công (chỉ trích trừ khi đơn hàng hoàn tất).'
+        `• **Người bán**: Phí sàn là **${feePercent}%** trên tổng giá trị giao dịch thành công (chỉ trích trừ khi đơn hàng hoàn tất).`
       );
     } else if (lowerMsg.includes('escrow') || lowerMsg.includes('cọc') || lowerMsg.includes('ví')) {
       return (

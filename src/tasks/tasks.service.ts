@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { getPlatformFeePercent } from '../escrow/escrow.service';
 
 @Injectable()
 export class TasksService {
@@ -267,9 +268,10 @@ export class TasksService {
           referenceId: order.id,
         });
 
+        const feePercent = getPlatformFeePercent();
         await this.notificationsService.createNotification(order.sellerId, {
           title: '💰 Tiền hàng đã được giải ngân!',
-          content: `Đơn hàng "${order.auction.product.title}" đã tự động hoàn tất sau 3 ngày giao hàng. Tiền hàng (trừ 5% phí sàn) đã được cộng vào Ví của bạn.`,
+          content: `Đơn hàng "${order.auction.product.title}" đã tự động hoàn tất sau 3 ngày giao hàng. Tiền hàng (trừ ${feePercent}% phí sàn) đã được cộng vào Ví của bạn.`,
           type: 'ORDER_AUTO_COMPLETED',
           referenceId: order.id,
         });

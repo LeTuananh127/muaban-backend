@@ -2,6 +2,15 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowStatus } from '@prisma/client';
 
+export function getPlatformFeePercent(): number {
+  const feeStr = process.env.PLATFORM_FEE_PERCENT;
+  if (feeStr !== undefined && !isNaN(Number(feeStr))) {
+    const parsed = Number(feeStr);
+    if (parsed >= 0 && parsed <= 100) return parsed;
+  }
+  return 5; // Default fallback to 5% if not set
+}
+
 @Injectable()
 export class EscrowService {
   constructor(private prisma: PrismaService) {}
@@ -91,7 +100,8 @@ export class EscrowService {
         });
       }
 
-      const platformFee = Math.round(escrow.amount * 0.05); // 5% fee
+      const feePercent = getPlatformFeePercent();
+      const platformFee = Math.round((escrow.amount * feePercent) / 100);
       const sellerAmount = escrow.amount - platformFee;
 
       // Add money to seller's wallet
