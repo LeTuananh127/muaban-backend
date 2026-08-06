@@ -205,6 +205,34 @@ export class BidsService {
               ).catch((e) => console.error('Outbid email error:', e));
             }
           }
+          // Notify users who favorited this auction
+          const favoritedUsers = await this.prisma.favorite.findMany({
+            where: {
+              auctionId,
+              userId: {
+                notIn: [userId, auction.product.ownerId, ...(auction.currentWinnerId ? [auction.currentWinnerId] : [])],
+              },
+            },
+            select: { userId: true },
+          });
+
+          for (const fav of favoritedUsers) {
+            await this.notificationsService.createNotification(fav.userId, {
+              title: 'Cập nhật từ sản phẩm yêu thích',
+              content: `Sản phẩm "${auction.product.title}" mà bạn thả tim vừa có lượt đặt giá mới: ${amount.toLocaleString('vi-VN')} đ`,
+              type: 'FAVORITE_BID',
+              referenceId: auctionId,
+            });
+
+            if (shouldExtend) {
+              await this.notificationsService.createNotification(fav.userId, {
+                title: 'Sản phẩm yêu thích được gia hạn!',
+                content: `Sản phẩm "${auction.product.title}" mà bạn thả tim vừa được tự động gia hạn thời gian kết thúc.`,
+                type: 'FAVORITE_EXTENDED',
+                referenceId: auctionId,
+              });
+            }
+          }
         }
       } catch (err) {
         console.error('Error creating notifications in placeBid:', err);

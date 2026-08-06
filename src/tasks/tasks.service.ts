@@ -120,6 +120,33 @@ export class TasksService {
           }
         }
       }
+
+      // Notify all users who favorited this auction
+      try {
+        const favoritedUsers = await this.prisma.favorite.findMany({
+          where: {
+            auctionId: auction.id,
+            userId: {
+              notIn: [
+                auction.product.ownerId,
+                ...(auction.currentWinnerId ? [auction.currentWinnerId] : []),
+              ],
+            },
+          },
+          select: { userId: true },
+        });
+
+        for (const fav of favoritedUsers) {
+          await this.notificationsService.createNotification(fav.userId, {
+            title: 'Sản phẩm yêu thích đã kết thúc',
+            content: `Phiên đấu giá sản phẩm "${auction.product.title}" mà bạn thả tim vừa kết thúc với giá thắng cuộc: ${auction.currentPrice.toLocaleString('vi-VN')} đ.`,
+            type: 'FAVORITE_ENDED',
+            referenceId: auction.id,
+          });
+        }
+      } catch (error) {
+        this.logger.error(`Failed to send favorited end notifications: ${error.message}`);
+      }
     }
   }
 
