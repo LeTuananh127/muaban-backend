@@ -7,13 +7,61 @@ export class AdminService {
 
   // ===================== QUẢN LÝ USER =====================
   async getAllUsers() {
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       select: {
-        id: true, email: true, name: true, phone: true, role: true, 
-        status: true, rating: true, shopName: true, sellerVerificationStatus: true,
-        customFeePercent: true, createdAt: true
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        status: true,
+        rating: true,
+        shopName: true,
+        sellerVerificationStatus: true,
+        customFeePercent: true,
+        createdAt: true,
+        _count: {
+          select: {
+            bids: true,
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const salesCounts = await this.prisma.order.groupBy({
+      by: ['sellerId'],
+      _count: { id: true },
+    });
+
+    const salesMap = new Map<string, number>();
+    for (const item of salesCounts) {
+      salesMap.set(item.sellerId, item._count.id);
+    }
+
+    return users.map((u) => {
+      const dateObj = new Date(u.createdAt);
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const year = dateObj.getFullYear();
+      const formattedJoinDate = `${day}/${month}/${year}`;
+
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        phone: u.phone || 'Chưa cập nhật',
+        role: u.role,
+        status: u.status,
+        rating: u.rating ?? 5.0,
+        shopName: u.shopName,
+        sellerVerificationStatus: u.sellerVerificationStatus,
+        customFeePercent: u.customFeePercent,
+        createdAt: u.createdAt,
+        joinDate: formattedJoinDate,
+        totalBids: u._count.bids,
+        totalSales: salesMap.get(u.id) ?? 0,
+      };
     });
   }
 
