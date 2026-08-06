@@ -100,7 +100,15 @@ export class EscrowService {
         });
       }
 
-      const feePercent = getPlatformFeePercent();
+      const seller = await tx.user.findUnique({
+        where: { id: order.sellerId },
+        select: { customFeePercent: true },
+      });
+
+      const feePercent = seller?.customFeePercent !== undefined && seller?.customFeePercent !== null
+        ? Number(seller.customFeePercent)
+        : getPlatformFeePercent();
+
       const platformFee = Math.round((escrow.amount * feePercent) / 100);
       const sellerAmount = escrow.amount - platformFee;
 

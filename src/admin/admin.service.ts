@@ -9,10 +9,33 @@ export class AdminService {
   async getAllUsers() {
     return this.prisma.user.findMany({
       select: {
-        id: true, email: true, name: true, role: true, 
-        status: true, rating: true, createdAt: true
+        id: true, email: true, name: true, phone: true, role: true, 
+        status: true, rating: true, shopName: true, sellerVerificationStatus: true,
+        customFeePercent: true, createdAt: true
       },
       orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async updateSellerFeeRate(userId: string, customFeePercent: number | null) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const feeValue = customFeePercent === null || customFeePercent === undefined || isNaN(Number(customFeePercent))
+      ? null
+      : Number(customFeePercent);
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        customFeePercent: feeValue,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        customFeePercent: true,
+      },
     });
   }
 

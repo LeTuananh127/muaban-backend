@@ -25,6 +25,15 @@ export class AdminController {
     return this.adminService.getAllUsers();
   }
 
+  // API Đổi phí sàn riêng cho Seller
+  @Patch('users/:id/fee-rate')
+  updateSellerFeeRate(
+    @Param('id') id: string,
+    @Body('customFeePercent') customFeePercent: number | null,
+  ) {
+    return this.adminService.updateSellerFeeRate(id, customFeePercent);
+  }
+
   // API Đổi trạng thái Khoá / Mở khóa User -> BANNED = Không được đấu giá, bán hàng
   @Patch('users/:id/toggle-ban')
   toggleBanUser(@Param('id') id: string) {

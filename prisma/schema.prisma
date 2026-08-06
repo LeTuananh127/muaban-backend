@@ -101,6 +101,7 @@ model User {
   idImages        String[]     @default([])
   warehouseAddress String?
   bankAccount     String?
+  customFeePercent Float?
   rating          Float        @default(0)
   totalReviews    Int          @default(0)
   createdAt       DateTime     @default(now())
