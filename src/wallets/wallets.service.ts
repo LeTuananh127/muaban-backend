@@ -181,7 +181,7 @@ export class WalletsService {
       throw new BadRequestException('Số tiền nạp tối thiểu qua VNPAY là 10.000 đ');
     }
     const txnRef = `vnp_${userId.substring(0, 6)}_${Date.now()}`;
-    const frontendUrl = process.env.FRONTEND_URL || 'https://bazaar.vn';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://bazzarr.vercel.app';
     const returnUrl = `${frontendUrl}/wallet?vnpay=return`;
     const orderInfo = `Nap tien vi Bazaar ${amount} VND`;
 

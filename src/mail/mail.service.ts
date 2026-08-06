@@ -160,7 +160,7 @@ export class MailService {
   }
 
   async sendVerificationEmail(toEmail: string, userName: string, token: string) {
-    const appUrl = process.env.FRONTEND_URL || 'https://bazaar.vn';
+    const appUrl = process.env.FRONTEND_URL || 'https://bazzarr.vercel.app';
     const verifyLink = `${appUrl}/verify-email?token=${token}`;
     const subject = '🔑 [Bazaar] Xác thực địa chỉ email tài khoản của bạn';
     const html = `
@@ -180,7 +180,7 @@ export class MailService {
   }
 
   async sendOutbidNotification(toEmail: string, userName: string, auctionTitle: string, newPrice: number, auctionId: string) {
-    const appUrl = process.env.FRONTEND_URL || 'https://bazaar.vn';
+    const appUrl = process.env.FRONTEND_URL || 'https://bazzarr.vercel.app';
     const auctionLink = `${appUrl}/auction/${auctionId}`;
     const subject = `⚡ [Bazaar] Mức giá của bạn tại "${auctionTitle}" đã bị vượt!`;
     const html = `
@@ -199,7 +199,7 @@ export class MailService {
   }
 
   async sendAuctionWonNotification(toEmail: string, userName: string, auctionTitle: string, winningPrice: number, orderId: string) {
-    const appUrl = process.env.FRONTEND_URL || 'https://bazaar.vn';
+    const appUrl = process.env.FRONTEND_URL || 'https://bazzarr.vercel.app';
     const checkoutLink = `${appUrl}/checkout/${orderId}`;
     const subject = `🎉 [Bazaar] CHÚC MỪNG! Bạn đã thắng phiên đấu giá "${auctionTitle}"`;
     const html = `
@@ -236,7 +236,7 @@ export class MailService {
   }
 
   async sendPasswordResetEmail(toEmail: string, userName: string, token: string) {
-    const appUrl = process.env.FRONTEND_URL || 'https://bazaar.vn';
+    const appUrl = process.env.FRONTEND_URL || 'https://bazzarr.vercel.app';
     const resetLink = `${appUrl}/reset-password?token=${token}`;
     const subject = '🔑 [Bazaar] Yêu cầu khôi phục mật khẩu tài khoản';
     const html = `
