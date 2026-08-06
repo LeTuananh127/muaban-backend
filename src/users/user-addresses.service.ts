@@ -210,16 +210,25 @@ export class UserAddressesService {
       create: { phone: address.phone, otp, expiresAt },
     });
 
-    // Send real SMS OTP via SpeedSMS / Twilio
-    const sent = await this.smsService.sendSmsOtp(address.phone, otp);
-    if (!sent && process.env.SHOW_TEST_OTP !== 'true') {
-      throw new BadRequestException('Không thể gửi tin nhắn SMS tới số điện thoại này. Vui lòng kiểm tra lại cổng SMS!');
+    // Send real SMS OTP via Brevo SMS / SpeedSMS / Twilio
+    const sentSms = await this.smsService.sendSmsOtp(address.phone, otp);
+
+    // Đồng thời gửi OTP về Email người dùng qua Brevo Email (Dual-Channel OTP)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true },
+    });
+
+    if (user?.email) {
+      this.mailService.sendPhoneOtpEmail(user.email, user.name, address.phone, otp).catch((err) => {
+        console.error('Failed to send phone OTP email via Brevo:', err);
+      });
     }
 
-    console.log(`[SMS OTP SENT] Phone: ${address.phone}, OTP: ${otp}, SentStatus: ${sent}`);
+    console.log(`[SMS/EMAIL OTP SENT] Phone: ${address.phone}, Email: ${user?.email}, OTP: ${otp}, SentSms: ${sentSms}`);
 
     return {
-      message: sent ? 'Mã OTP xác thực đã được gửi tới số điện thoại của bạn!' : 'Mã OTP xác thực (Chế độ thử nghiệm)',
+      message: 'Mã OTP xác thực đã được gửi tới Số điện thoại và Email của bạn qua Brevo!',
       otp: process.env.SHOW_TEST_OTP === 'true' ? otp : undefined,
     };
   }

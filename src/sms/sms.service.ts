@@ -24,6 +24,45 @@ export class SmsService {
     const formattedPhone = this.formatPhone(phone);
     const body = `[Bazaar] Ma OTP xac thuc so dien thoai cua ban la: ${otp}. Ma co hieu luc trong 5 phut.`;
 
+    // 0. Ưu tiên cao nhất: Brevo Transactional SMS API (nếu có BREVO_API_KEY)
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+    if (brevoKey && brevoKey.startsWith('xkeysib-')) {
+      try {
+        let brevoPhone = phone.replace(/\D/g, '');
+        if (brevoPhone.startsWith('0')) {
+          brevoPhone = '84' + brevoPhone.substring(1);
+        }
+        if (!brevoPhone.startsWith('+')) {
+          brevoPhone = '+' + brevoPhone;
+        }
+
+        const smsRes = await fetch('https://api.brevo.com/v3/transactionalSMS/send', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'api-key': brevoKey,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: 'Bazaar',
+            recipient: brevoPhone,
+            content: body,
+            type: 'transactional',
+          }),
+        });
+
+        const smsData: any = await smsRes.json();
+        if (smsRes.ok && (smsData.messageId || smsData.reference)) {
+          this.logger.log(`[Brevo SMS] ✅ Transactional SMS sent to ${brevoPhone}: ${smsData.messageId || smsData.reference}`);
+          return true;
+        } else {
+          this.logger.warn(`[Brevo SMS Warning] ${JSON.stringify(smsData)}`);
+        }
+      } catch (err) {
+        this.logger.error('[Brevo SMS Error] Failed to send Transactional SMS', err);
+      }
+    }
+
     // 0. Ưu tiên gửi qua Zalo ZNS API nếu có ZALO_ZNS_ACCESS_TOKEN và ZALO_ZNS_TEMPLATE_ID
     const zaloToken = process.env.ZALO_ZNS_ACCESS_TOKEN;
     const zaloTemplateId = process.env.ZALO_ZNS_TEMPLATE_ID;
