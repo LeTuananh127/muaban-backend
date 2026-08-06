@@ -162,24 +162,40 @@ Quy tắc ứng xử và nghiệp vụ:
 }
 
   async generateListingContent(title: string, category?: string, condition?: string, imageUrl?: string) {
-    // 1. Layer 1: Fetch product image buffer for Multimodal Gemini Vision if imageUrl is provided
+    // 1. Layer 1: Fetch/Parse product image buffer for Multimodal Gemini Vision if imageUrl is provided
     let imagePart: any = null;
-    if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
-      try {
-        const response = await fetch(imageUrl);
-        if (response.ok) {
-          const arrayBuffer = await response.arrayBuffer();
-          const base64Data = Buffer.from(arrayBuffer).toString('base64');
-          const mimeType = response.headers.get('content-type') || 'image/jpeg';
-          imagePart = {
-            inlineData: {
-              data: base64Data,
-              mimeType,
-            },
-          };
+    if (imageUrl) {
+      if (imageUrl.startsWith('data:')) {
+        try {
+          const matches = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches && matches[2]) {
+            imagePart = {
+              inlineData: {
+                mimeType: matches[1] || 'image/jpeg',
+                data: matches[2],
+              },
+            };
+          }
+        } catch (err) {
+          console.warn('Failed to parse base64 data URL for Gemini Vision:', err);
         }
-      } catch (err) {
-        console.warn('Failed to fetch image for Gemini Vision:', err);
+      } else if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+        try {
+          const response = await fetch(imageUrl);
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            const base64Data = Buffer.from(arrayBuffer).toString('base64');
+            const mimeType = response.headers.get('content-type') || 'image/jpeg';
+            imagePart = {
+              inlineData: {
+                data: base64Data,
+                mimeType,
+              },
+            };
+          }
+        } catch (err) {
+          console.warn('Failed to fetch image for Gemini Vision:', err);
+        }
       }
     }
 
