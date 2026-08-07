@@ -141,7 +141,22 @@ Quy tắc ứng xử và nghiệp vụ:
 
     // Smart Fallback Assistant Response if Gemini API Key quota is exceeded or unreachable
     const lowerMsg = message.toLowerCase();
-    if (lowerMsg.includes('đăng') || lowerMsg.includes('bán') || lowerMsg.includes('tạo')) {
+
+    if (['chủ', 'tên gì', 'ai tạo', 'tác giả', 'sinh viên', 'người tạo', 'tuấn anh', 'lê tuấn anh', 'phenikaa'].some((w) => lowerMsg.includes(w))) {
+      return (
+        '🎓 **Thông tin Tác giả & Đồ án Tốt nghiệp**:\n\n' +
+        '• **Hệ thống**: **Bazaar** — Sàn Mua Bán & Đấu Giá Đồ Cũ Trực Tuyến.\n' +
+        '• **Sinh viên thực hiện**: **Lê Tuấn Anh** (MSSV: 21012046) — Lớp K15-CNTT3.\n' +
+        '• **Giảng viên hướng dẫn**: **TS. Nguyễn Lệ Thu**.\n' +
+        '• **Trường**: Đại học Phenikaa — Khoa Công nghệ Thông tin.\n\n' +
+        'Ứng dụng được xây dựng với mục tiêu mang đến nền tảng Re-commerce đấu giá đồ cũ minh bạch, an toàn qua Ví ký quỹ Escrow và Trợ lý AI!'
+      );
+    } else if (['hello', 'hi', 'chào', 'xin chào', 'chao', 'hey'].some((w) => lowerMsg.includes(w))) {
+      return (
+        '👋 **Chào bạn! Trợ lý AI Bazaar rất vui được hỗ trợ bạn.**\n\n' +
+        'Tôi có thể giúp bạn hướng dẫn đăng bán đồ cũ, quy trình đặt giá đấu giá, cơ chế ký quỹ ví Escrow, hoặc tìm kiếm các sản phẩm hot đang đấu giá trên sàn. Bạn cần hỗ trợ thông tin gì ạ?'
+      );
+    } else if (lowerMsg.includes('đăng') || lowerMsg.includes('bán') || lowerMsg.includes('tạo')) {
       return (
         '🤖 **Hướng dẫn Đăng bán Đấu giá Đồ cũ trên Bazaar**:\n\n' +
         '1️⃣ **Bước 1**: Đăng nhập tài khoản Seller.\n' +
@@ -173,6 +188,7 @@ Quy tắc ứng xử và nghiệp vụ:
     return (
       '🤖 **Trợ lý AI Bazaar hân hạnh hỗ trợ bạn**!\n\n' +
       'Tôi có thể giải đáp cho bạn về:\n' +
+      '• **Tác giả dự án**: Thông tin sinh viên thực hiện & Trường.\n' +
       '• **Đăng bán đấu giá**: Cách tạo bài viết, đặt bước giá & chọn layout.\n' +
       '• **Cơ chế Ký quỹ Ví Escrow**: Đặt cọc an toàn & hoàn tiền tự động.\n' +
       '• **Chính sách phí sàn**: Miễn phí cho người mua, phí ưu đãi cho người bán.\n' +
