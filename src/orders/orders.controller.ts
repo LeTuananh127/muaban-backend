@@ -72,4 +72,13 @@ export class OrdersController {
   ) {
     return this.ordersService.escalateDisputeToAdmin(req.user.userId, refundId, reason, images);
   }
+
+  @Post(':id/refuse')
+  refuseOrder(
+    @Request() req,
+    @Param('id') orderId: string,
+    @Body('reason') reason?: string,
+  ) {
+    return this.ordersService.refuseOrder(req.user.userId, orderId, reason);
+  }
 }

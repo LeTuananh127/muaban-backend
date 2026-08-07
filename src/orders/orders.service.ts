@@ -2,7 +2,8 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException 
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from '../escrow/escrow.service';
 import { PaymentsService } from '../payments/payments.service';
-import { OrderStatus } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
+import { OrderStatus, ProductStatus } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
@@ -10,6 +11,7 @@ export class OrdersService {
     private prisma: PrismaService,
     private escrowService: EscrowService,
     private paymentsService: PaymentsService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async createOrder(buyerId: string, auctionId: string) {
@@ -531,5 +533,132 @@ export class OrdersService {
       where: { id: orderId },
       data: { status: 'COMPLETED', completedAt: new Date() },
     });
+  }
+
+  async refuseOrder(userId: string, orderId: string, reason?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        auction: { include: { product: true } },
+        buyer: true,
+        seller: true,
+        escrow: true,
+        payment: true,
+      },
+    });
+
+    if (!order) throw new NotFoundException('Order not found');
+
+    if (order.buyerId !== userId && order.sellerId !== userId) {
+      throw new ForbiddenException('You do not have permission to handle this order refusal');
+    }
+
+    if (['COMPLETED', 'CANCELLED'].includes(String(order.status))) {
+      throw new BadRequestException('Order is already completed or cancelled');
+    }
+
+    const shippingCompensation = order.auction.shippingCost && order.auction.shippingCost > 0
+      ? order.auction.shippingCost
+      : 30000;
+
+    let refundedToBuyer = 0;
+    let compensatedToSeller = 0;
+
+    await this.prisma.$transaction(async (tx) => {
+      if (order.escrow && (order.escrow.status === 'HELD' || order.escrow.status === 'RELEASED')) {
+        const totalAmount = order.totalAmount;
+        compensatedToSeller = Math.min(shippingCompensation, totalAmount);
+        refundedToBuyer = Math.max(0, totalAmount - compensatedToSeller);
+
+        await tx.escrow.update({
+          where: { id: order.escrow.id },
+          data: { status: 'REFUNDED', refundedAt: new Date() },
+        });
+
+        if (compensatedToSeller > 0) {
+          let sellerWallet = await tx.wallet.findUnique({ where: { userId: order.sellerId } });
+          if (!sellerWallet) {
+            sellerWallet = await tx.wallet.create({ data: { userId: order.sellerId, balance: 0 } });
+          }
+          await tx.wallet.update({
+            where: { id: sellerWallet.id },
+            data: { balance: { increment: compensatedToSeller } },
+          });
+          await tx.walletTransaction.create({
+            data: {
+              walletId: sellerWallet.id,
+              type: 'CREDIT',
+              amount: compensatedToSeller,
+              reference: `refusal_compensation:order:${order.id}`,
+            },
+          });
+        }
+
+        if (refundedToBuyer > 0) {
+          let buyerWallet = await tx.wallet.findUnique({ where: { userId: order.buyerId } });
+          if (!buyerWallet) {
+            buyerWallet = await tx.wallet.create({ data: { userId: order.buyerId, balance: 0 } });
+          }
+          await tx.wallet.update({
+            where: { id: buyerWallet.id },
+            data: { balance: { increment: refundedToBuyer } },
+          });
+          await tx.walletTransaction.create({
+            data: {
+              walletId: buyerWallet.id,
+              type: 'REFUND',
+              amount: refundedToBuyer,
+              reference: `refusal_refund:order:${order.id}`,
+            },
+          });
+        }
+      }
+
+      const currentRating = order.buyer.rating ?? 5.0;
+      const newRating = Math.max(1.0, Number((currentRating - 0.5).toFixed(1)));
+      await tx.user.update({
+        where: { id: order.buyerId },
+        data: { rating: newRating },
+      });
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+        },
+      });
+
+      if (order.auction && order.auction.productId) {
+        await tx.product.update({
+          where: { id: order.auction.productId },
+          data: { status: ProductStatus.AVAILABLE },
+        });
+      }
+    });
+
+    try {
+      await this.notificationsService.createNotification(order.buyerId, {
+        title: 'Xác nhận Từ chối nhận hàng',
+        content: `Đơn hàng #${order.id.slice(-6)} đã bị hủy do từ chối nhận hàng. Số tiền ${refundedToBuyer.toLocaleString('vi-VN')} đ đã được hoàn về Ví của bạn (đã trừ ${compensatedToSeller.toLocaleString('vi-VN')} đ phí vận chuyển bồi thường cho Người bán). Điểm uy tín bị trừ 0.5 điểm.`,
+        type: 'ORDER_REFUSED',
+        referenceId: order.id,
+      });
+
+      await this.notificationsService.createNotification(order.sellerId, {
+        title: 'Người mua Từ chối nhận hàng',
+        content: `Người mua đã từ chối nhận đơn hàng #${order.id.slice(-6)}. Ví của bạn đã được bồi thường ${compensatedToSeller.toLocaleString('vi-VN')} đ phí vận chuyển và sản phẩm đã được tự động mở bán lại.`,
+        type: 'ORDER_REFUSED',
+        referenceId: order.id,
+      });
+    } catch (e) {
+      console.error('Error sending refusal notifications:', e);
+    }
+
+    return {
+      message: 'Đã xử lý từ chối nhận hàng thành công',
+      refundedToBuyer,
+      compensatedToSeller,
+    };
   }
 }
