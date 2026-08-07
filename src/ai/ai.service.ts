@@ -107,13 +107,13 @@ Quy tắc ứng xử và nghiệp vụ:
 5. Trả lời ngắn gọn, tập trung vào câu hỏi, tránh dài dòng lan man.
 `;
 
-    // Array of candidate models for robust fallback (using active 2.5/2.0/1.5-latest model names)
+    // Array of candidate models for robust fallback (prioritizing 1.5-flash-latest for higher free quota)
     const candidateModels = [
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
       'gemini-1.5-flash-latest',
-      'gemini-1.5-pro-latest',
       'gemini-1.5-flash',
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+      'gemini-1.5-pro-latest',
       'gemini-2.0-flash-exp',
     ];
 
@@ -425,11 +425,11 @@ Hãy trả về định dạng JSON hợp lệ duy nhất (không bọc trong th
 `;
 
       const candidateModels = [
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
         'gemini-1.5-flash-latest',
-        'gemini-1.5-pro-latest',
         'gemini-1.5-flash',
+        'gemini-2.0-flash',
+        'gemini-2.5-flash',
+        'gemini-1.5-pro-latest',
         'gemini-2.0-flash-exp',
       ];
       for (const modelName of candidateModels) {
