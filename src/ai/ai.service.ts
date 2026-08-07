@@ -139,7 +139,7 @@ Quy tắc ứng xử và nghiệp vụ:
       }
     }
 
-    // Smart Fallback Assistant Response if Gemini API Key is invalid or expired
+    // Smart Fallback Assistant Response if Gemini API Key quota is exceeded or unreachable
     const lowerMsg = message.toLowerCase();
     if (lowerMsg.includes('đăng') || lowerMsg.includes('bán') || lowerMsg.includes('tạo')) {
       return (
@@ -153,17 +153,32 @@ Quy tắc ứng xử và nghiệp vụ:
       return (
         '🤖 **Chính sách Phí dịch vụ Sàn Bazaar**:\n\n' +
         '• **Người mua**: Miễn phí 100% giao dịch khi tham gia đấu giá.\n' +
-        `• **Người bán**: Phí sàn là **${feePercent}%** trên tổng giá trị giao dịch thành công (chỉ trích trừ khi đơn hàng hoàn tất).`
+        `• **Người bán**: Phí sàn tiêu chuẩn là **${feePercent}%** trên tổng giá trị giao dịch thành công (chỉ trích trừ khi đơn hàng hoàn tất).`
       );
     } else if (lowerMsg.includes('escrow') || lowerMsg.includes('cọc') || lowerMsg.includes('ví')) {
       return (
         '🤖 **Cơ chế Ký quỹ Ví Escrow Hold**:\n\n' +
-        'Khi đặt giá, hệ thống sẽ tạm giữ 10% tiền cọc trong Ví Escrow. ' +
-        'Nếu có người khác đặt giá cao hơn, tiền cọc 100% sẽ tự động hoàn trả về Ví khả dụng của bạn lập tức!'
+        'Khi đặt giá, hệ thống sẽ tạm giữ tiền cọc trong Ví Escrow. ' +
+        'Nếu có người khác đặt giá cao hơn, 100% tiền cọc sẽ được tự động hoàn trả về Ví khả dụng của bạn ngay lập tức!'
+      );
+    } else if (lowerMsg.includes('mua') || lowerMsg.includes('đấu giá') || lowerMsg.includes('đặt giá')) {
+      return (
+        '🤖 **Hướng dẫn Tham gia Đấu giá**:\n\n' +
+        '• Bạn chọn sản phẩm yêu thích và nhập mức giá đặt cao hơn giá hiện tại + bước giá tối thiểu.\n' +
+        '• Tiền cọc sẽ được tạm giữ an toàn trong Ví Escrow.\n' +
+        '• Nếu chiến thắng phiên đấu giá, bạn tiến hành thanh toán đơn hàng để Người bán giao hàng cho bạn!'
       );
     }
 
-    return 'Xin lỗi, tôi đang bảo trì kết nối AI Gemini API. Bạn vui lòng kiểm tra GEMINI_API_KEY từ https://aistudio.google.com/app/apikey và thử lại nhé!';
+    return (
+      '🤖 **Trợ lý AI Bazaar hân hạnh hỗ trợ bạn**!\n\n' +
+      'Tôi có thể giải đáp cho bạn về:\n' +
+      '• **Đăng bán đấu giá**: Cách tạo bài viết, đặt bước giá & chọn layout.\n' +
+      '• **Cơ chế Ký quỹ Ví Escrow**: Đặt cọc an toàn & hoàn tiền tự động.\n' +
+      '• **Chính sách phí sàn**: Miễn phí cho người mua, phí ưu đãi cho người bán.\n' +
+      '• **Xử lý Khiếu nại / Từ chối nhận hàng**: Đảm bảo quyền lợi 2 bên.\n\n' +
+      '*Mẹo*: Bạn cũng có thể lấy `GEMINI_API_KEY` mới (miễn phí từ https://aistudio.google.com/app/apikey) rồi dán vào tệp `.env` của backend (auction-system/.env) và khởi động lại server để trò chuyện trực tiếp với trí tuệ nhân tạo Gemini 2.5 Flash!'
+    );
   } catch (error) {
     console.error('Gemini API Error:', error);
     return 'Xin lỗi, tôi đang gặp sự cố kết nối AI. Bạn vui lòng thử lại sau nhé!';
