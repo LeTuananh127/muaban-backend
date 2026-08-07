@@ -231,8 +231,8 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Order not found');
     if (order.buyerId !== userId) throw new ForbiddenException('Only buyer can request refund');
     if (order.status === 'CANCELLED') throw new BadRequestException('Cannot request refund for cancelled order');
-    if (!['PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(String(order.status))) {
-      throw new BadRequestException('Refund can only be requested after payment');
+    if (!['DELIVERED', 'COMPLETED'].includes(String(order.status))) {
+      throw new BadRequestException('Chỉ có thể gửi yêu cầu Hoàn tiền sau khi bạn đã nhận được hàng (Trạng thái: Đã giao hàng hoặc Đã hoàn tất).');
     }
     if (!reason || !reason.trim()) throw new BadRequestException('Refund reason is required');
 
