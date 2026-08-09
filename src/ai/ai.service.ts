@@ -176,6 +176,17 @@ Quy tắc ứng xử và nghiệp vụ:
         'Khi đặt giá, hệ thống sẽ tạm giữ tiền cọc trong Ví Escrow. ' +
         'Nếu có người khác đặt giá cao hơn, 100% tiền cọc sẽ được tự động hoàn trả về Ví khả dụng của bạn ngay lập tức!'
       );
+    } else if (['la sao', 'là sao', 'tại sao', 'nhanh hết', 'hết hạn', 'hết ngạch', 'key', 'lý do', 'sao vậy'].some((w) => lowerMsg.includes(w))) {
+      return (
+        '🔑 **Giải thích về GEMINI_API_KEY & Hạn ngạch Google Free Tier**:\n\n' +
+        '• **Lý do API Key báo lỗi / nhanh kịch hạn ngạch**: Mã `GEMINI_API_KEY` trong tệp `.env` backend phải là mã lấy từ Google AI Studio (có định dạng bắt đầu bằng chữ `AIzaSy...`). Mã key hiện tại bị lỗi định danh nên Google API tự động hủy kết nối và chuyển sang phản hồi dự phòng này.\n' +
+        '• **Gói miễn phí Google (Free Tier)** cấp tối đa 15 lượt gọi/phút và 1.500 lượt gọi/ngày.\n\n' +
+        '👉 **Cách khắc phục miễn phí 100% (Mất 30 giây)**:\n' +
+        '1️⃣ Đăng nhập [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) và bấm **Create API key**.\n' +
+        '2️⃣ Sao chép mã key mới (bắt đầu bằng `AIzaSy...`).\n' +
+        '3️⃣ Mở tệp `auction-system/.env` và dán vào: `GEMINI_API_KEY=AIzaSy...`\n' +
+        '4️⃣ Khởi động lại Server Backend NestJS!'
+      );
     } else if (lowerMsg.includes('mua') || lowerMsg.includes('đấu giá') || lowerMsg.includes('đặt giá')) {
       return (
         '🤖 **Hướng dẫn Tham gia Đấu giá**:\n\n' +
