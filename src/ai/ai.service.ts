@@ -187,6 +187,14 @@ Quy tắc ứng xử và nghiệp vụ:
         '3️⃣ Mở tệp `auction-system/.env` và dán vào: `GEMINI_API_KEY=AIzaSy...`\n' +
         '4️⃣ Khởi động lại Server Backend NestJS!'
       );
+    } else if (['gợi ý', 'sản phẩm', 'đang bán', 'đang đấu', 'có gì', 'gợi ý sản phẩm', 'tìm', 'đồ'].some((w) => lowerMsg.includes(w))) {
+      if (matchingAuctions.length > 0) {
+        const listStr = matchingAuctions
+          .map((a) => `• 🏷️ [${a.product.title}](/auction/${a.id}) (Danh mục: ${a.product.category?.name || 'Khác'}) - Giá hiện tại: **${a.startingPrice.toLocaleString('vi-VN')}đ**`)
+          .join('\n');
+        return `🔥 **Gợi ý các sản phẩm đang Đấu giá Nổi bật trên Bazaar**:\n\n${listStr}\n\n👉 Bạn bấm trực tiếp vào tên sản phẩm để xem chi tiết và tham gia đặt giá ngay nhé!`;
+      }
+      return 'Dạ hiện tại sàn đang chuẩn bị cập nhật thêm các phiên đấu giá mới. Bạn quay lại sau ít phút nhé!';
     } else if (lowerMsg.includes('mua') || lowerMsg.includes('đấu giá') || lowerMsg.includes('đặt giá')) {
       return (
         '🤖 **Hướng dẫn Tham gia Đấu giá**:\n\n' +
