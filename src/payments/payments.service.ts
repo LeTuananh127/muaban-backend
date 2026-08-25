@@ -79,12 +79,39 @@ export class PaymentsService {
     const order = await this.prisma.order.findUnique({
       where: { id: payment.orderId },
     });
-    if (order && order.status === OrderStatus.PENDING) {
-      await this.prisma.order.update({
-        where: { id: payment.orderId },
-        // cast to any because Prisma Client types may be out-of-sync in some dev states
-        data: ({ status: OrderStatus.PAID, paidAt: new Date() } as any),
+    if (order) {
+      if (order.status === OrderStatus.PENDING) {
+        await this.prisma.order.update({
+          where: { id: payment.orderId },
+          // cast to any because Prisma Client types may be out-of-sync in some dev states
+          data: ({ status: OrderStatus.PAID, paidAt: new Date() } as any),
+        });
+      }
+
+      // Automatically release buyer's auction bid deposit hold when order is paid
+      const buyerWallet = await this.prisma.wallet.findUnique({
+        where: { userId: order.buyerId },
       });
+      if (buyerWallet) {
+        const unreleasedHolds = await this.prisma.walletHold.findMany({
+          where: {
+            walletId: buyerWallet.id,
+            releasedAt: null,
+            OR: [
+              { orderId: order.id },
+              { reason: { contains: `[auction_${order.auctionId}]` } },
+              { reason: { contains: order.auctionId } },
+            ],
+          },
+        });
+
+        for (const hold of unreleasedHolds) {
+          await this.prisma.walletHold.update({
+            where: { id: hold.id },
+            data: { releasedAt: new Date(), releasedBy: 'ORDER_PAID_SYSTEM' },
+          });
+        }
+      }
     }
 
     return updatedPayment;

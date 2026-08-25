@@ -25,7 +25,8 @@ export class WalletsService {
         orders: { some: { sellerId: userId } },
       },
     });
-    const pendingEscrowAmount = pendingEscrows.reduce((s, e) => s + e.amount, 0);
+    // Deduct 5% platform fee from pending escrow amount (net 95% revenue for seller)
+    const pendingEscrowAmount = pendingEscrows.reduce((s, e) => s + Math.round(e.amount * 0.95), 0);
 
     const totalHeld = held + pendingEscrowAmount;
 
