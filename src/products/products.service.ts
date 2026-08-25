@@ -125,6 +125,7 @@ export class ProductsService {
         auction: {
           include: {
             currentWinner: { select: { id: true, name: true, avatar: true } },
+            order: true,
             bids: {
               include: {
                 user: { select: { id: true, name: true, avatar: true } }

@@ -27,6 +27,9 @@ export class BidsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   broadcastNewBid(auctionId: string, bidData: any) {
-    this.server.to(`auction_${auctionId}`).emit('newBid', bidData);
+    const payload = { auctionId, ...bidData };
+    this.server.to(`auction_${auctionId}`).emit('newBid', payload);
+    this.server.emit('newBid', payload);
+    this.server.emit('auctionUpdated', payload);
   }
 }

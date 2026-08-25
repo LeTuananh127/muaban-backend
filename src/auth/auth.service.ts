@@ -88,16 +88,26 @@ export class AuthService {
       throw new BadRequestException('Please verify your email before login');
     }
 
+    if (user.status === 'BANNED') {
+      throw new BadRequestException('Tài khoản của bạn đã bị KHÓA (BANNED) do bùng hàng / quá hạn thanh toán nhiều lần. Vui lòng liên hệ Admin để được hỗ trợ.');
+    }
+
     const payload = { sub: user.id, email: user.email, role: user.role };
+
+    const userProfile = await this.usersService.findById(user.id);
 
     return {
       access_token: this.jwtService.sign(payload),
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        avatar: user.avatar,
+        id: userProfile.id,
+        email: userProfile.email,
+        name: userProfile.name,
+        role: userProfile.role,
+        avatar: userProfile.avatar,
+        status: userProfile.status,
+        isBanned: userProfile.status === 'BANNED',
+        sellerTrustScore: userProfile.sellerTrustScore,
+        buyerTrustScore: userProfile.buyerTrustScore,
       },
     };
   }

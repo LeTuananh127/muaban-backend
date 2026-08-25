@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
 import { getPlatformFeePercent } from '../escrow/escrow.service';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class TasksService {
     private prisma: PrismaService,
     private ordersService: OrdersService,
     private notificationsService: NotificationsService,
+    private usersService: UsersService,
   ) {}
 
   // Cron job chạy mỗi phút để check và đóng các phiên đấu giá đã quá hạn
@@ -227,10 +229,13 @@ export class TasksService {
           }
         });
 
-        // 5. Gửi thông báo đẩy cho Buyer và Seller
+        // 5. Lấy điểm Uy Tín Người Mua đã được cập nhật trừ điểm và Gửi thông báo đẩy
+        const updatedBuyer = await this.usersService.findById(order.buyerId);
+        const currentScore = updatedBuyer.buyerTrustScore ?? 100;
+
         await this.notificationsService.createNotification(order.buyerId, {
-          title: '⚠️ Đơn hàng bị hủy do quá hạn thanh toán!',
-          content: `Đơn hàng cho sản phẩm "${order.auction.product.title}" đã bị hủy tự động do bạn không thanh toán trong 48 giờ. Bạn đã bị trừ 20 điểm Uy Tín.`,
+          title: '⚠️ Đơn hàng bị hủy & Trừ 20 Điểm Uy Tín Người Mua!',
+          content: `Đơn hàng #${order.id.slice(0, 8)} cho sản phẩm "${order.auction.product.title}" đã bị hủy tự động do quá hạn 48 giờ không thanh toán. Bạn bị trừ 20 điểm Uy Tín Người Mua (Điểm uy tín hiện tại: ${currentScore}/100).`,
           type: 'ORDER_CANCELLED_UNPAID',
           referenceId: order.id,
         });

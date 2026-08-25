@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BidsGateway } from './bids.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class BidsService {
@@ -11,9 +12,15 @@ export class BidsService {
     private readonly bidsGateway: BidsGateway,
     private readonly notificationsService: NotificationsService,
     private readonly mailService: MailService,
+    private readonly usersService: UsersService,
   ) {}
 
   async placeBid(userId: string, auctionId: string, amount: number) {
+    const userProfile = await this.usersService.findById(userId);
+    if (userProfile.status === 'BANNED') {
+      throw new BadRequestException('Tài khoản của bạn hiện đang bị BANNED. Không thể tham gia đặt giá.');
+    }
+
     const auction = await this.prisma.auction.findUnique({
       where: { id: auctionId },
       include: { product: true },
@@ -32,15 +39,7 @@ export class BidsService {
     }
 
     if (auction.minTrustScore && auction.minTrustScore > 0) {
-      const buyerReviews = await this.prisma.review.findMany({
-        where: { revieweeId: userId },
-        include: { order: true },
-      });
-      const receivedBuyerReviews = buyerReviews.filter((r) => r.order && r.order.buyerId === userId);
-      const buyerRating = receivedBuyerReviews.length > 0
-        ? receivedBuyerReviews.reduce((sum, r) => sum + r.rating, 0) / receivedBuyerReviews.length
-        : 5.0;
-      const buyerTrustScore = Math.min(100, Math.round(buyerRating * 20));
+      const buyerTrustScore = userProfile.buyerTrustScore ?? 100;
 
       if (buyerTrustScore < auction.minTrustScore) {
         throw new BadRequestException(
@@ -137,7 +136,7 @@ export class BidsService {
         });
       }
 
-      return { newBid, currentPrice: amount, status: updatedAuction.status, endTime: updatedAuction.endTime };
+      return { auctionId, newBid, currentPrice: amount, status: updatedAuction.status, endTime: updatedAuction.endTime };
     });
 
     // Broadcast the real-time update

@@ -107,12 +107,18 @@ export class UsersService {
     const contactInfoBonus = (user.phone || user.defaultShippingAddress) ? 7.5 : 0;
     const buyerVerificationScore = emailVerifiedBonus + contactInfoBonus;
 
+    // 5. Hình phạt Trừ điểm do Không thanh toán / Bùng cọc (-20 điểm/lần)
+    const unpaidCancelledOrdersCount = buyingOrders.filter((o) => o.status === 'CANCELLED').length;
+    const unpaidPenalty = unpaidCancelledOrdersCount * 20;
+
     // Điểm Uy Tín Người Mua Tổng Hợp (Scale 0 - 100)
-    const buyerTrustScore = Math.min(100, Math.max(0, Math.round(buyerStarScore + buyerPaymentScore + buyerActivityBonus + buyerVerificationScore)));
+    const rawBuyerScore = Math.round(buyerStarScore + buyerPaymentScore + buyerActivityBonus + buyerVerificationScore);
+    const buyerTrustScore = Math.min(100, Math.max(0, rawBuyerScore - unpaidPenalty));
     const buyerRating = nBuyer > 0 ? Number((sumBuyerRatings / nBuyer).toFixed(1)) : 5.0;
 
     return {
       ...user,
+      isBanned: user.status === 'BANNED',
       sellerRating,
       sellerReviewsCount: sellerReviews.length,
       sellerTrustScore,
@@ -132,6 +138,8 @@ export class UsersService {
         paymentRate: Number(buyerPaymentRate.toFixed(1)),
         totalBuyingOrders,
         paidBuyingOrders,
+        unpaidCancelledOrdersCount,
+        unpaidPenalty,
         bidsPlacedCount,
         emailVerified: user.emailVerified,
         hasShippingInfo: !!(user.phone || user.defaultShippingAddress),
