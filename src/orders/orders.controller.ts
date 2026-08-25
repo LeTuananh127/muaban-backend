@@ -34,8 +34,10 @@ export class OrdersController {
     @Request() req,
     @Param('id') orderId: string,
     @Body('status') status: OrderStatus,
+    @Body('shippingProvider') shippingProvider?: string,
+    @Body('trackingCode') trackingCode?: string,
   ) {
-    return this.ordersService.updateOrderStatus(req.user.userId, orderId, status);
+    return this.ordersService.updateOrderStatus(req.user.userId, orderId, status, shippingProvider, trackingCode);
   }
 
   @Post(':id/refund')

@@ -141,7 +141,7 @@ export class OrdersService {
     };
   }
 
-  async updateOrderStatus(userId: string, orderId: string, status: OrderStatus) {
+  async updateOrderStatus(userId: string, orderId: string, status: OrderStatus, shippingProvider?: string, trackingCode?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { escrow: true },
@@ -178,6 +178,12 @@ export class OrdersService {
       if (String(order.status) !== requiredPrevStatus) {
         throw new BadRequestException(`Seller can only mark shipped after the order is ${requiredPrevStatus.toLowerCase()}`);
       }
+      if (!shippingProvider || !shippingProvider.trim()) {
+        throw new BadRequestException('Vui lòng chọn đơn vị vận chuyển!');
+      }
+      if (!trackingCode || !trackingCode.trim()) {
+        throw new BadRequestException('Vui lòng nhập mã vận đơn!');
+      }
     }
 
     // Handle escrow logic
@@ -211,7 +217,11 @@ export class OrdersService {
     const updateData: any = { status: normalizedStatus };
 
     if (normalizedStatus === 'PAID') updateData.paidAt = new Date();
-    if (normalizedStatus === 'SHIPPED') updateData.shippedAt = new Date();
+    if (normalizedStatus === 'SHIPPED') {
+      updateData.shippedAt = new Date();
+      if (shippingProvider) updateData.shippingProvider = shippingProvider.trim();
+      if (trackingCode) updateData.trackingCode = trackingCode.trim();
+    }
     if (normalizedStatus === 'DELIVERED') updateData.deliveredAt = new Date();
     if (normalizedStatus === 'COMPLETED') updateData.completedAt = new Date();
     if (normalizedStatus === 'CANCELLED') updateData.cancelledAt = new Date();

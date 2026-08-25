@@ -287,6 +287,8 @@ model Order {
   status      OrderStatus @default(PENDING)
   paymentId   String?
   escrowId    String?
+  shippingProvider String? // Đơn vị vận chuyển (VD: GHN, GHTK, Viettel Post)
+  trackingCode     String? // Mã vận đơn (VD: GHN-98124018)
   paidAt      DateTime?
   shippedAt   DateTime?
   deliveredAt DateTime?
