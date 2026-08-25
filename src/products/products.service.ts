@@ -156,7 +156,7 @@ export class ProductsService {
     const {
       title, description, images, condition, location, categoryId,
       startingPrice, reservePrice, buyNowPrice, shippingCost, bidIncrement,
-      extendTriggerMinutes, extendDurationMinutes, layoutType, endTime
+      extendTriggerMinutes, extendDurationMinutes, layoutType, minTrustScore, depositPercent, endTime
     } = updateData;
 
     if (categoryId) {
@@ -202,6 +202,8 @@ export class ProductsService {
         if (buyNowPrice !== undefined) auctionData.buyNowPrice = buyNowPrice;
         if (shippingCost !== undefined) auctionData.shippingCost = shippingCost;
         if (bidIncrement !== undefined) auctionData.bidIncrement = bidIncrement;
+        if (minTrustScore !== undefined) auctionData.minTrustScore = Number(minTrustScore);
+        if (depositPercent !== undefined) auctionData.depositPercent = Number(depositPercent);
         if (extendTriggerMinutes !== undefined) auctionData.extendTriggerMinutes = Number(extendTriggerMinutes);
         if (extendDurationMinutes !== undefined) auctionData.extendDurationMinutes = Number(extendDurationMinutes);
         if (layoutType !== undefined) auctionData.layoutType = layoutType;
