@@ -71,8 +71,9 @@ export class BidsService {
       throw new BadRequestException(`Bid must be at least ${auction.currentPrice + auction.bidIncrement}`);
     }
 
-    // Deposit amount requirement = 10% of bid amount
-    const depositAmount = Math.round(amount * 0.10);
+    // Deposit percent dynamically configured by Seller (Default: 0%)
+    const pct = (auction as any).depositPercent ?? 0;
+    const depositAmount = pct > 0 ? Math.round(amount * (pct / 100)) : 0;
 
     // Check wallet balance
     let wallet = await this.prisma.wallet.findUnique({ where: { userId } });
@@ -85,9 +86,9 @@ export class BidsService {
     const held = holds.reduce((sum, hold) => sum + hold.amount, 0);
     const available = wallet.balance - held;
 
-    if (available < depositAmount) {
+    if (depositAmount > 0 && available < depositAmount) {
       throw new BadRequestException(
-        `Số dư khả dụng trong ví không đủ để ký quỹ cọc (Yêu cầu cọc 10%: ${depositAmount.toLocaleString('vi-VN')} đ). Vui lòng nạp thêm tiền vào ví!`
+        `Số dư khả dụng trong ví không đủ để ký quỹ cọc (Yêu cầu cọc ${pct}%: ${depositAmount.toLocaleString('vi-VN')} đ). Vui lòng nạp thêm tiền vào ví!`
       );
     }
 
@@ -106,19 +107,22 @@ export class BidsService {
           data: {
             releasedAt: new Date(),
             releasedBy: 'OUTBID_SYSTEM',
-            reason: `Hoàn cọc 10% do có người đặt giá cao hơn (${amount.toLocaleString('vi-VN')} đ)`,
+            reason: `Hoàn cọc do có người đặt giá cao hơn (${amount.toLocaleString('vi-VN')} đ)`,
           },
         });
       }
 
-      // 2. Create new deposit hold for current highest bidder
-      const newHold = await tx.walletHold.create({
-        data: {
-          walletId: wallet.id,
-          amount: depositAmount,
-          reason: `Tạm giữ cọc 10% đặt giá sản phẩm "${auction.product.title.slice(0, 30)}" [auction_${auctionId}]`,
-        },
-      });
+      // 2. Create new deposit hold for current highest bidder (if seller required deposit)
+      let newHold: any = null;
+      if (depositAmount > 0) {
+        newHold = await tx.walletHold.create({
+          data: {
+            walletId: wallet.id,
+            amount: depositAmount,
+            reason: `Tạm giữ cọc ${pct}% đặt giá sản phẩm "${auction.product.title.slice(0, 30)}" [auction_${auctionId}]`,
+          },
+        });
+      }
 
       // Create bid
       const newBid = await tx.bid.create({

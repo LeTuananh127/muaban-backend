@@ -121,7 +121,24 @@ export class OrdersService {
       }
     }
 
-    return order;
+    const hold = await this.prisma.walletHold.findFirst({
+      where: {
+        OR: [
+          { orderId: order.id },
+          { reason: { contains: `[auction_${order.auctionId}]` } },
+        ],
+        releasedAt: null,
+      },
+    });
+
+    const depositHeldAmount = hold ? hold.amount : 0;
+    const remainingAmount = Math.max(0, order.totalAmount - depositHeldAmount);
+
+    return {
+      ...order,
+      depositHeldAmount,
+      remainingAmount,
+    };
   }
 
   async updateOrderStatus(userId: string, orderId: string, status: OrderStatus) {

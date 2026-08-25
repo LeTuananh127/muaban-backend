@@ -10,7 +10,7 @@ export class ProductsService {
     const { 
       title, description, images, condition, location, categoryId, 
       startingPrice, reservePrice, buyNowPrice, shippingCost, bidIncrement,
-      extendTriggerMinutes, extendDurationMinutes, layoutType, minTrustScore, endTime 
+      extendTriggerMinutes, extendDurationMinutes, layoutType, minTrustScore, depositPercent, endTime 
     } = createData;
 
     const end = new Date(endTime);
@@ -60,6 +60,7 @@ export class ProductsService {
           extendDurationMinutes: extendDurationMinutes !== undefined ? Number(extendDurationMinutes) : 2,
           layoutType: layoutType || 'standard',
           minTrustScore: minTrustScore !== undefined ? Number(minTrustScore) : 0,
+          depositPercent: depositPercent !== undefined ? Number(depositPercent) : 0,
           endTime: end,
           status: 'ACTIVE'
         },

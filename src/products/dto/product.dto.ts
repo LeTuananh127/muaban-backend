@@ -66,6 +66,10 @@ export class CreateProductAndAuctionDto {
   @IsOptional()
   minTrustScore?: number;
 
+  @IsNumber()
+  @IsOptional()
+  depositPercent?: number;
+
   @IsString()
   @IsNotEmpty()
   endTime: string;
@@ -134,6 +138,10 @@ export class UpdateProductAndAuctionDto {
   @IsNumber()
   @IsOptional()
   minTrustScore?: number;
+
+  @IsNumber()
+  @IsOptional()
+  depositPercent?: number;
 
   @IsString()
   @IsOptional()
