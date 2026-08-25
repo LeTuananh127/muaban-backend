@@ -71,6 +71,9 @@ export class BidsService {
       throw new BadRequestException(`Bid must be at least ${auction.currentPrice + auction.bidIncrement}`);
     }
 
+    // Deposit amount requirement = 10% of bid amount
+    const depositAmount = Math.round(amount * 0.10);
+
     // Check wallet balance
     let wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     if (!wallet) {
@@ -82,12 +85,41 @@ export class BidsService {
     const held = holds.reduce((sum, hold) => sum + hold.amount, 0);
     const available = wallet.balance - held;
 
-    if (available < amount) {
-      throw new BadRequestException(`Số dư ví không đủ. Bạn cần có tối thiểu ${amount.toLocaleString('vi-VN')} đ để đặt mức giá này.`);
+    if (available < depositAmount) {
+      throw new BadRequestException(
+        `Số dư khả dụng trong ví không đủ để ký quỹ cọc (Yêu cầu cọc 10%: ${depositAmount.toLocaleString('vi-VN')} đ). Vui lòng nạp thêm tiền vào ví!`
+      );
     }
 
     // Process the bid securely in a transaction
     const newBidResult = await this.prisma.$transaction(async (tx) => {
+      // 1. Release previous active deposit holds for this auction
+      const oldAuctionHolds = await tx.walletHold.findMany({
+        where: {
+          reason: { contains: `[auction_${auctionId}]` },
+          releasedAt: null,
+        },
+      });
+      for (const oldHold of oldAuctionHolds) {
+        await tx.walletHold.update({
+          where: { id: oldHold.id },
+          data: {
+            releasedAt: new Date(),
+            releasedBy: 'OUTBID_SYSTEM',
+            reason: `Hoàn cọc 10% do có người đặt giá cao hơn (${amount.toLocaleString('vi-VN')} đ)`,
+          },
+        });
+      }
+
+      // 2. Create new deposit hold for current highest bidder
+      const newHold = await tx.walletHold.create({
+        data: {
+          walletId: wallet.id,
+          amount: depositAmount,
+          reason: `Tạm giữ cọc 10% đặt giá sản phẩm "${auction.product.title.slice(0, 30)}" [auction_${auctionId}]`,
+        },
+      });
+
       // Create bid
       const newBid = await tx.bid.create({
         data: {
@@ -124,8 +156,8 @@ export class BidsService {
           data: { status: 'SOLD' },
         });
 
-        // Create the order immediately
-        await tx.order.create({
+        // Create the order immediately and link deposit hold
+        const order = await tx.order.create({
           data: {
             auctionId,
             buyerId: userId,
@@ -133,6 +165,11 @@ export class BidsService {
             totalAmount: amount + (auction.shippingCost || 0),
             status: 'PENDING',
           },
+        });
+
+        await tx.walletHold.update({
+          where: { id: newHold.id },
+          data: { orderId: order.id },
         });
       }
 
@@ -358,6 +395,7 @@ export class BidsService {
 
       if (nextBidAmount >= currentPrice + increment) {
         const newBidResult = await this.prisma.$transaction(async (tx) => {
+          const depositAmount = Math.round(nextBidAmount * 0.10);
           // Check wallet balance
           let wallet = await tx.wallet.findUnique({ where: { userId: winnerId } });
           if (!wallet) {
@@ -369,9 +407,36 @@ export class BidsService {
           const held = holds.reduce((sum, hold) => sum + hold.amount, 0);
           const available = wallet.balance - held;
 
-          if (available < nextBidAmount) {
-            return null; // Skip if they ran out of money
+          if (available < depositAmount) {
+            return null; // Skip if they ran out of deposit money
           }
+
+          // Release previous active deposit holds for this auction
+          const oldAuctionHolds = await tx.walletHold.findMany({
+            where: {
+              reason: { contains: `[auction_${auctionId}]` },
+              releasedAt: null,
+            },
+          });
+          for (const oldHold of oldAuctionHolds) {
+            await tx.walletHold.update({
+              where: { id: oldHold.id },
+              data: {
+                releasedAt: new Date(),
+                releasedBy: 'OUTBID_SYSTEM',
+                reason: `Hoàn cọc 10% do có người đặt giá cao hơn (${nextBidAmount.toLocaleString('vi-VN')} đ)`,
+              },
+            });
+          }
+
+          // Create new deposit hold for proxy bid winner
+          await tx.walletHold.create({
+            data: {
+              walletId: wallet.id,
+              amount: depositAmount,
+              reason: `Tạm giữ cọc 10% đặt giá sản phẩm "${auction.product.title.slice(0, 30)}" [auction_${auctionId}]`,
+            },
+          });
 
           // Create bid
           const newBid = await tx.bid.create({
