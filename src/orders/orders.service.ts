@@ -161,8 +161,8 @@ export class OrdersService {
 
     const normalizedStatus = String(status).toUpperCase() as OrderStatus;
 
-    if (order.buyerId === userId && !['PAID', 'DELIVERED', 'CANCELLED'].includes(normalizedStatus)) {
-      throw new BadRequestException('Buyer can only update status to PAID, DELIVERED, or CANCELLED');
+    if (order.buyerId === userId && !['PAID', 'DELIVERED', 'COMPLETED', 'CANCELLED'].includes(normalizedStatus)) {
+      throw new BadRequestException('Buyer can only update status to PAID, DELIVERED, COMPLETED, or CANCELLED');
     }
 
     if (order.sellerId === userId && !['SHIPPED', 'CANCELLED'].includes(normalizedStatus)) {
@@ -186,9 +186,8 @@ export class OrdersService {
       }
     }
 
-    // Handle escrow logic
-    if (normalizedStatus === 'DELIVERED' && order.escrow) {
-      // Release escrow when order is delivered
+    // Handle escrow logic: Release escrow to seller IMMEDIATELY when order is COMPLETED
+    if (normalizedStatus === 'COMPLETED' && order.escrow && order.escrow.status === 'HELD') {
       await this.escrowService.releaseEscrow(order.escrow.id);
     }
 
@@ -260,9 +259,20 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Order not found');
     if (order.buyerId !== userId) throw new ForbiddenException('Only buyer can request refund');
     if (order.status === 'CANCELLED') throw new BadRequestException('Cannot request refund for cancelled order');
-    if (!['DELIVERED', 'COMPLETED'].includes(String(order.status))) {
-      throw new BadRequestException('Chỉ có thể gửi yêu cầu Hoàn tiền sau khi bạn đã nhận được hàng (Trạng thái: Đã giao hàng hoặc Đã hoàn tất).');
+    if (order.status === 'COMPLETED') {
+      throw new BadRequestException('Đơn hàng đã hoàn tất và giải ngân, không thể gửi yêu cầu trả hàng / hoàn tiền.');
     }
+    if (String(order.status) !== 'DELIVERED') {
+      throw new BadRequestException('Chỉ có thể gửi yêu cầu Hoàn tiền khi đơn hàng ở trạng thái Đã giao hàng (DELIVERED).');
+    }
+
+    if (order.deliveredAt) {
+      const hoursSinceDelivery = (Date.now() - order.deliveredAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceDelivery > 72) {
+        throw new BadRequestException('Đã quá thời hạn 3 ngày (72 giờ) kể từ khi nhận hàng. Đơn hàng không còn áp dụng chính sách trả hàng / hoàn tiền.');
+      }
+    }
+
     if (!reason || !reason.trim()) throw new BadRequestException('Refund reason is required');
 
     const existingPendingRefund = await this.prisma.refundRequest.findFirst({

@@ -17,7 +17,25 @@ export class WalletsService {
     const wallet = await this.getOrCreateWallet(userId);
     const holds = await this.prisma.walletHold.findMany({ where: { walletId: wallet.id, releasedAt: null } });
     const held = holds.reduce((s, h) => s + h.amount, 0);
-    return { ...wallet, heldAmount: held, available: wallet.balance - held };
+
+    // Calculate pending escrow money for orders sold by this user waiting for completion
+    const pendingEscrows = await this.prisma.escrow.findMany({
+      where: {
+        status: 'HELD',
+        orders: { some: { sellerId: userId } },
+      },
+    });
+    const pendingEscrowAmount = pendingEscrows.reduce((s, e) => s + e.amount, 0);
+
+    const totalHeld = held + pendingEscrowAmount;
+
+    return {
+      ...wallet,
+      heldAmount: totalHeld,
+      buyerHeldAmount: held,
+      pendingEscrowAmount,
+      available: wallet.balance - held,
+    };
   }
 
   async topUp(userId: string, amount: number, reference?: string) {
