@@ -18,24 +18,33 @@ export class WalletsService {
     const holds = await this.prisma.walletHold.findMany({ where: { walletId: wallet.id, releasedAt: null } });
     const held = holds.reduce((s, h) => s + h.amount, 0);
 
-    // Calculate pending escrow money for orders sold by this user waiting for completion
+    // Calculate pending escrow money for orders sold by this user waiting for completion (net 95% after 5% platform fee)
     const pendingEscrows = await this.prisma.escrow.findMany({
       where: {
         status: 'HELD',
         orders: { some: { sellerId: userId } },
       },
     });
-    // Deduct 5% platform fee from pending escrow amount (net 95% revenue for seller)
     const pendingEscrowAmount = pendingEscrows.reduce((s, e) => s + Math.round(e.amount * 0.95), 0);
 
-    const totalHeld = held + pendingEscrowAmount;
+    // Calculate pending withdrawal requests waiting for admin approval
+    const pendingWithdrawals = await this.prisma.withdrawRequest.findMany({
+      where: {
+        userId,
+        status: 'PENDING',
+      },
+    });
+    const pendingWithdrawAmount = pendingWithdrawals.reduce((s, w) => s + w.amount, 0);
+
+    const totalHeld = held + pendingEscrowAmount + pendingWithdrawAmount;
 
     return {
       ...wallet,
       heldAmount: totalHeld,
       buyerHeldAmount: held,
       pendingEscrowAmount,
-      available: wallet.balance - held,
+      pendingWithdrawAmount,
+      available: Math.max(0, wallet.balance - held - pendingWithdrawAmount),
     };
   }
 
@@ -111,32 +120,24 @@ export class WalletsService {
     const wallet = await this.getOrCreateWallet(userId);
     const holds = await this.prisma.walletHold.findMany({ where: { walletId: wallet.id, releasedAt: null } });
     const held = holds.reduce((s, h) => s + h.amount, 0);
-    const available = wallet.balance - held;
-    if (available < amount) throw new BadRequestException('Insufficient wallet balance');
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { decrement: amount } },
-      });
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          type: 'DEBIT',
-          amount,
-          reference: `withdraw_pending`,
-        },
-      });
-      return tx.withdrawRequest.create({
-        data: {
-          userId,
-          amount,
-          bankName,
-          accountNo,
-          accountName,
-          status: 'PENDING',
-        },
-      });
+    const pendingWithdrawals = await this.prisma.withdrawRequest.findMany({
+      where: { userId, status: 'PENDING' },
+    });
+    const pendingWithdrawAmount = pendingWithdrawals.reduce((s, w) => s + w.amount, 0);
+
+    const available = wallet.balance - held - pendingWithdrawAmount;
+    if (available < amount) throw new BadRequestException('Số dư khả dụng không đủ để thực hiện yêu cầu rút tiền');
+
+    return this.prisma.withdrawRequest.create({
+      data: {
+        userId,
+        amount,
+        bankName,
+        accountNo,
+        accountName,
+        status: 'PENDING',
+      },
     });
   }
 
@@ -154,13 +155,29 @@ export class WalletsService {
     if (!request) throw new NotFoundException('Withdraw request not found');
     if (request.status !== 'PENDING') throw new BadRequestException('Request is not pending');
 
-    return this.prisma.withdrawRequest.update({
-      where: { id: requestId },
-      data: {
-        status: 'APPROVED',
-        processedAt: new Date(),
-        note,
-      },
+    const wallet = await this.getOrCreateWallet(request.userId);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balance: { decrement: request.amount } },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'DEBIT',
+          amount: request.amount,
+          reference: `withdraw_approved:${requestId}`,
+        },
+      });
+      return tx.withdrawRequest.update({
+        where: { id: requestId },
+        data: {
+          status: 'APPROVED',
+          processedAt: new Date(),
+          note,
+        },
+      });
     });
   }
 
@@ -169,29 +186,13 @@ export class WalletsService {
     if (!request) throw new NotFoundException('Withdraw request not found');
     if (request.status !== 'PENDING') throw new BadRequestException('Request is not pending');
 
-    const wallet = await this.getOrCreateWallet(request.userId);
-
-    return this.prisma.$transaction(async (tx) => {
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { increment: request.amount } },
-      });
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          type: 'CREDIT',
-          amount: request.amount,
-          reference: `withdraw_rejected:${requestId}`,
-        },
-      });
-      return tx.withdrawRequest.update({
-        where: { id: requestId },
-        data: {
-          status: 'REJECTED',
-          processedAt: new Date(),
-          note,
-        },
-      });
+    return this.prisma.withdrawRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'REJECTED',
+        processedAt: new Date(),
+        note,
+      },
     });
   }
 
