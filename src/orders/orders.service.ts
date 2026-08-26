@@ -161,19 +161,19 @@ export class OrdersService {
 
     const normalizedStatus = String(status).toUpperCase() as OrderStatus;
 
-    if (order.buyerId === userId && !['PAID', 'DELIVERED', 'COMPLETED', 'CANCELLED'].includes(normalizedStatus)) {
-      throw new BadRequestException('Buyer can only update status to PAID, DELIVERED, COMPLETED, or CANCELLED');
+    if (order.buyerId === userId && !['PAID', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'DISPUTED'].includes(String(normalizedStatus))) {
+      throw new BadRequestException('Buyer can only update status to PAID, DELIVERED, COMPLETED, CANCELLED, or DISPUTED');
     }
 
-    if (order.sellerId === userId && !['SHIPPED', 'CANCELLED'].includes(normalizedStatus)) {
+    if (order.sellerId === userId && !['SHIPPED', 'CANCELLED'].includes(String(normalizedStatus))) {
       throw new BadRequestException('Seller can only update status to SHIPPED or CANCELLED');
     }
 
-    if (order.buyerId === userId && normalizedStatus === 'CANCELLED' && String(order.status) !== 'PENDING') {
-      throw new BadRequestException('Buyer can only cancel before payment');
+    if (order.buyerId === userId && normalizedStatus === OrderStatus.CANCELLED && String(order.status) === 'COMPLETED') {
+      throw new BadRequestException('Cannot cancel a completed order');
     }
 
-    if (order.sellerId === userId && normalizedStatus === 'SHIPPED') {
+    if (order.sellerId === userId && normalizedStatus === OrderStatus.SHIPPED) {
       const requiredPrevStatus = isCOD ? 'PENDING' : 'PAID';
       if (String(order.status) !== requiredPrevStatus) {
         throw new BadRequestException(`Seller can only mark shipped after the order is ${requiredPrevStatus.toLowerCase()}`);
@@ -187,11 +187,18 @@ export class OrdersService {
     }
 
     // Handle escrow logic: Release escrow to seller IMMEDIATELY when order is COMPLETED
-    if (normalizedStatus === 'COMPLETED' && order.escrow && order.escrow.status === 'HELD') {
-      await this.escrowService.releaseEscrow(order.escrow.id);
+    if (normalizedStatus === OrderStatus.COMPLETED) {
+      const escrowId = order.escrow?.id || order.escrowId;
+      if (escrowId) {
+        try {
+          await this.escrowService.releaseEscrow(escrowId);
+        } catch (err) {
+          console.log('Could not release escrow:', err.message);
+        }
+      }
     }
 
-    if (normalizedStatus === 'DELIVERED' && isCOD && payment && payment.status === 'PENDING') {
+    if (normalizedStatus === OrderStatus.DELIVERED && isCOD && payment && payment.status === 'PENDING') {
       // For COD, automatically complete payment when delivered
       await this.prisma.payment.update({
         where: { id: payment.id },
@@ -203,27 +210,29 @@ export class OrdersService {
       });
     }
 
-    if (normalizedStatus === 'CANCELLED' && order.escrow) {
-      // Refund escrow when order is cancelled
-      try {
-        await this.escrowService.refundEscrow(order.escrow.id);
-      } catch (error) {
-        // If escrow is not in HELD status, continue
-        console.log('Could not refund escrow:', error.message);
+    if (normalizedStatus === OrderStatus.CANCELLED) {
+      // Refund escrow when order is cancelled / refused
+      const escrowId = order.escrow?.id || order.escrowId;
+      if (escrowId) {
+        try {
+          await this.escrowService.refundEscrow(escrowId);
+        } catch (error) {
+          console.log('Could not refund escrow:', error.message);
+        }
       }
     }
 
     const updateData: any = { status: normalizedStatus };
 
-    if (normalizedStatus === 'PAID') updateData.paidAt = new Date();
-    if (normalizedStatus === 'SHIPPED') {
+    if (normalizedStatus === OrderStatus.PAID) updateData.paidAt = new Date();
+    if (normalizedStatus === OrderStatus.SHIPPED) {
       updateData.shippedAt = new Date();
       if (shippingProvider) updateData.shippingProvider = shippingProvider.trim();
       if (trackingCode) updateData.trackingCode = trackingCode.trim();
     }
-    if (normalizedStatus === 'DELIVERED') updateData.deliveredAt = new Date();
-    if (normalizedStatus === 'COMPLETED') updateData.completedAt = new Date();
-    if (normalizedStatus === 'CANCELLED') updateData.cancelledAt = new Date();
+    if (normalizedStatus === OrderStatus.DELIVERED) updateData.deliveredAt = new Date();
+    if (normalizedStatus === OrderStatus.COMPLETED) updateData.completedAt = new Date();
+    if (normalizedStatus === OrderStatus.CANCELLED) updateData.cancelledAt = new Date();
 
     try {
       const updatedOrder = await this.prisma.order.update({
