@@ -318,10 +318,44 @@ export class OrdersService {
 
     const orderId = refund.orderId;
 
-    // Try to refund escrow and payment
+    // Mark refund request approved (agree to return item). Keep money in Escrow HELD until seller confirms receiving returned product!
+    await this.prisma.refundRequest.update({
+      where: { id: refundId },
+      data: { status: 'APPROVED', processedAt: new Date(), processedBy: sellerId, note },
+    });
+
+    // Notify buyer that return request was approved and they should ship the item back
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId: refund.buyerId,
+          title: '📦 Yêu cầu trả hàng đã được chấp thuận',
+          content: `Người bán đã đồng ý nhận lại hàng cho đơn hàng. Vui lòng đóng gói và gửi hàng lại cho người bán.`,
+          type: 'REFUND_APPROVED',
+          referenceId: orderId,
+        },
+      });
+    } catch (err) {
+      console.log('Could not create notification:', err?.message);
+    }
+
+    return this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'DISPUTED' },
+    });
+  }
+
+  async confirmReturnReceived(sellerId: string, refundId: string, note?: string) {
+    const refund = await this.prisma.refundRequest.findUnique({ where: { id: refundId }, include: { order: true } });
+    if (!refund) throw new NotFoundException('Refund request not found');
+    if (refund.sellerId !== sellerId) throw new ForbiddenException('Only the seller can confirm returned goods');
+    if (refund.status !== 'APPROVED') throw new BadRequestException('Chỉ có thể xác nhận nhận hàng sau khi đã phê duyệt yêu cầu trả hàng');
+
+    const orderId = refund.orderId;
     const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: { escrow: true } });
     if (!order) throw new NotFoundException('Order not found');
 
+    // Refund escrow to buyer wallet now that seller has received returned product
     if (order.escrow) {
       try {
         await this.escrowService.refundEscrow(order.escrow.id);
@@ -332,7 +366,6 @@ export class OrdersService {
 
     const payment = await this.prisma.payment.findFirst({ where: { orderId } });
     if (payment) {
-      // If payment method was COD and already completed, we chargeback the seller and refund the buyer's wallet
       if (payment.method === 'CASH_ON_DELIVERY' && payment.status === 'COMPLETED') {
         try {
           await this.prisma.$transaction(async (tx) => {
@@ -384,10 +417,25 @@ export class OrdersService {
       }
     }
 
-    // mark refund request approved and update order
-    await this.prisma.refundRequest.update({ where: { id: refundId }, data: { status: 'APPROVED', processedAt: new Date(), processedBy: sellerId, note } });
+    // Create notification for buyer that money was refunded
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId: refund.buyerId,
+          title: '💰 Hoàn tiền thành công',
+          content: `Người bán đã xác nhận nhận lại hàng hoàn. Số tiền ${new Intl.NumberFormat('vi-VN').format(order.totalAmount)} đ đã được hoàn trả về Ví Bazaar của bạn!`,
+          type: 'REFUND_COMPLETED',
+          referenceId: orderId,
+        },
+      });
+    } catch (err) {
+      console.log('Could not create notification:', err?.message);
+    }
 
-    return this.prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
+    return this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'CANCELLED' },
+    });
   }
 
   async rejectRefund(sellerId: string, refundId: string, note?: string, sellerImages?: string[]) {

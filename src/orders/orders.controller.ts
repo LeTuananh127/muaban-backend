@@ -55,6 +55,15 @@ export class OrdersController {
     return this.ordersService.approveRefund(req.user.userId, refundId, note);
   }
 
+  @Post('refund/:refundId/confirm-return')
+  confirmReturnReceived(
+    @Request() req,
+    @Param('refundId') refundId: string,
+    @Body('note') note?: string,
+  ) {
+    return this.ordersService.confirmReturnReceived(req.user.userId, refundId, note);
+  }
+
   @Post('refund/:refundId/reject')
   rejectRefund(
     @Request() req,
