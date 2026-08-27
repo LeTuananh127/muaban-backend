@@ -300,7 +300,15 @@ export class TasksService {
           referenceId: order.id,
         });
 
-        const feePercent = getPlatformFeePercent();
+        const seller = await this.prisma.user.findUnique({
+          where: { id: order.sellerId },
+          select: { customFeePercent: true },
+        });
+        const feePercent =
+          seller?.customFeePercent !== undefined && seller?.customFeePercent !== null
+            ? Number(seller.customFeePercent)
+            : getPlatformFeePercent();
+
         await this.notificationsService.createNotification(order.sellerId, {
           title: '💰 Tiền hàng đã được giải ngân!',
           content: `Đơn hàng "${order.auction.product.title}" đã tự động hoàn tất sau 3 ngày giao hàng. Tiền hàng (trừ ${feePercent}% phí sàn) đã được cộng vào Ví của bạn.`,
