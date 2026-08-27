@@ -27,7 +27,7 @@ export class UsersService {
         role: true, status: true, rating: true, totalReviews: true,
         shopName: true, sellerVerificationStatus: true,
         idNumber: true, idImages: true, warehouseAddress: true,
-        bankAccount: true, phone: true,
+        bankAccount: true, phone: true, customFeePercent: true,
         createdAt: true,
       },
     });
@@ -116,8 +116,15 @@ export class UsersService {
     const buyerTrustScore = Math.min(100, Math.max(0, rawBuyerScore - unpaidPenalty));
     const buyerRating = nBuyer > 0 ? Number((sumBuyerRatings / nBuyer).toFixed(1)) : 5.0;
 
+    const feePercent =
+      user.customFeePercent !== undefined && user.customFeePercent !== null
+        ? Number(user.customFeePercent)
+        : 5;
+
     return {
       ...user,
+      feePercent,
+      isCustomFee: user.customFeePercent !== undefined && user.customFeePercent !== null,
       isBanned: user.status === 'BANNED',
       sellerRating,
       sellerReviewsCount: sellerReviews.length,

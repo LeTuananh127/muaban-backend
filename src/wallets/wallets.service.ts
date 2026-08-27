@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { getPlatformFeePercent } from '../escrow/escrow.service';
 
 @Injectable()
 export class WalletsService {
@@ -18,14 +19,27 @@ export class WalletsService {
     const holds = await this.prisma.walletHold.findMany({ where: { walletId: wallet.id, releasedAt: null } });
     const held = holds.reduce((s, h) => s + h.amount, 0);
 
-    // Calculate pending escrow money for orders sold by this user waiting for completion (net 95% after 5% platform fee)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { customFeePercent: true },
+    });
+
+    const feePercent =
+      user?.customFeePercent !== undefined && user?.customFeePercent !== null
+        ? Number(user.customFeePercent)
+        : getPlatformFeePercent();
+
+    // Calculate pending escrow money for orders sold by this user waiting for completion
     const pendingEscrows = await this.prisma.escrow.findMany({
       where: {
         status: 'HELD',
         orders: { some: { sellerId: userId } },
       },
     });
-    const pendingEscrowAmount = pendingEscrows.reduce((s, e) => s + Math.round(e.amount * 0.95), 0);
+    const pendingEscrowAmount = pendingEscrows.reduce(
+      (s, e) => s + Math.round((e.amount * (100 - feePercent)) / 100),
+      0,
+    );
 
     // Calculate pending withdrawal requests waiting for admin approval
     const pendingWithdrawals = await this.prisma.withdrawRequest.findMany({
@@ -45,6 +59,8 @@ export class WalletsService {
       pendingEscrowAmount,
       pendingWithdrawAmount,
       available: Math.max(0, wallet.balance - held - pendingWithdrawAmount),
+      feePercent,
+      isCustomFee: user?.customFeePercent !== undefined && user?.customFeePercent !== null,
     };
   }
 
@@ -253,6 +269,15 @@ export class WalletsService {
   async getMyEscrowsAndHolds(userId: string) {
     const wallet = await this.getOrCreateWallet(userId);
 
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { customFeePercent: true },
+    });
+    const feePercent =
+      user?.customFeePercent !== undefined && user?.customFeePercent !== null
+        ? Number(user.customFeePercent)
+        : getPlatformFeePercent();
+
     const holds = await this.prisma.walletHold.findMany({
       where: { walletId: wallet.id },
       include: {
@@ -275,7 +300,7 @@ export class WalletsService {
         orders: {
           include: {
             auction: { include: { product: true } },
-            seller: { select: { id: true, name: true, avatar: true } },
+            seller: { select: { id: true, name: true, avatar: true, customFeePercent: true } },
             buyer: { select: { id: true, name: true, avatar: true } },
           },
         },
@@ -291,7 +316,7 @@ export class WalletsService {
         orders: {
           include: {
             auction: { include: { product: true } },
-            seller: { select: { id: true, name: true, avatar: true } },
+            seller: { select: { id: true, name: true, avatar: true, customFeePercent: true } },
             buyer: { select: { id: true, name: true, avatar: true } },
           },
         },
@@ -300,6 +325,8 @@ export class WalletsService {
     });
 
     return {
+      feePercent,
+      isCustomFee: user?.customFeePercent !== undefined && user?.customFeePercent !== null,
       holds,
       buyerEscrows,
       sellerEscrows,
