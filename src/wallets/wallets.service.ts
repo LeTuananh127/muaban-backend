@@ -1,10 +1,17 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { getPlatformFeePercent } from '../escrow/escrow.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class WalletsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(WalletsService.name);
+  private withdrawOtpStore = new Map<string, { otp: string; amount: number; bankName: string; accountNo: string; expiresAt: number }>();
+
+  constructor(
+    private prisma: PrismaService,
+    private mailService: MailService,
+  ) {}
 
   async getOrCreateWallet(userId: string) {
     let wallet = await this.prisma.wallet.findUnique({ where: { userId } });
@@ -130,7 +137,67 @@ export class WalletsService {
     return updated;
   }
 
-  async requestWithdraw(userId: string, amount: number, bankName: string, accountNo: string, accountName: string) {
+  async sendWithdrawOtp(userId: string, amount: number, bankName: string, accountNo: string) {
+    if (!amount || amount <= 0) throw new BadRequestException('Số tiền rút không hợp lệ');
+    if (amount < 50000) {
+      throw new BadRequestException('Số tiền rút tối thiểu là 50.000 VNĐ');
+    }
+    if (!bankName || !bankName.trim()) throw new BadRequestException('Vui lòng chọn ngân hàng nhận tiền');
+    if (!accountNo || !accountNo.trim()) throw new BadRequestException('Vui lòng nhập số tài khoản ngân hàng');
+
+    const wallet = await this.getOrCreateWallet(userId);
+    const holds = await this.prisma.walletHold.findMany({ where: { walletId: wallet.id, releasedAt: null } });
+    const held = holds.reduce((s, h) => s + h.amount, 0);
+
+    const pendingWithdrawals = await this.prisma.withdrawRequest.findMany({
+      where: { userId, status: 'PENDING' },
+    });
+    const pendingWithdrawAmount = pendingWithdrawals.reduce((s, w) => s + w.amount, 0);
+
+    const available = wallet.balance - held - pendingWithdrawAmount;
+    if (available < amount) {
+      throw new BadRequestException(
+        `Số dư khả dụng không đủ để rút tiền (Khả dụng: ${new Intl.NumberFormat('vi-VN').format(Math.max(0, available))} đ, Yêu cầu: ${new Intl.NumberFormat('vi-VN').format(amount)} đ)`
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true },
+    });
+
+    if (!user || !user.email) {
+      throw new BadRequestException('Không tìm thấy thông tin email của tài khoản để gửi mã OTP');
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+    this.withdrawOtpStore.set(userId, {
+      otp,
+      amount,
+      bankName: bankName.trim(),
+      accountNo: accountNo.trim(),
+      expiresAt,
+    });
+
+    try {
+      await this.mailService.sendWithdrawOtpEmail(user.email, user.name || 'Thành viên', amount, bankName, accountNo, otp);
+      this.logger.log(`Withdraw 2FA OTP sent to ${user.email} for user ${userId}`);
+    } catch (err: any) {
+      this.logger.error(`Failed to send withdraw OTP email: ${err.message}`);
+    }
+
+    const maskedEmail = user.email.replace(/^(.{2})(.*)(@.*)$/, '$1***$3');
+    return {
+      success: true,
+      message: `Mã xác thực OTP đã được gửi đến email ${maskedEmail}. Vui lòng kiểm tra hòm thư!`,
+      expiresIn: 300,
+    };
+  }
+
+  async requestWithdraw(userId: string, amount: number, bankName: string, accountNo: string, accountName: string, otp?: string) {
     if (!amount || amount <= 0) throw new BadRequestException('Số tiền rút không hợp lệ');
     if (amount < 50000) {
       throw new BadRequestException('Số tiền rút tối thiểu là 50.000 VNĐ');
@@ -139,6 +206,28 @@ export class WalletsService {
     if (!accountNo || !accountNo.trim()) throw new BadRequestException('Vui lòng nhập số tài khoản ngân hàng');
     if (!accountName || !accountName.trim()) throw new BadRequestException('Vui lòng nhập tên chủ tài khoản');
     
+    // 2FA OTP verification
+    if (!otp || !otp.trim()) {
+      throw new BadRequestException('Vui lòng nhập mã OTP 6 số đã được gửi về email của bạn để xác thực rút tiền');
+    }
+
+    const stored = this.withdrawOtpStore.get(userId);
+    if (!stored) {
+      throw new BadRequestException('Bạn chưa yêu cầu gửi mã OTP hoặc mã đã hết hạn. Vui lòng bấm "Gửi mã OTP" lại!');
+    }
+
+    if (Date.now() > stored.expiresAt) {
+      this.withdrawOtpStore.delete(userId);
+      throw new BadRequestException('Mã OTP xác thực đã hết hạn (5 phút). Vui lòng yêu cầu mã OTP mới!');
+    }
+
+    if (stored.otp !== otp.trim()) {
+      throw new BadRequestException('Mã xác thực OTP không chính xác. Vui lòng kiểm tra lại email!');
+    }
+
+    // OTP verified successfully -> clear OTP
+    this.withdrawOtpStore.delete(userId);
+
     const wallet = await this.getOrCreateWallet(userId);
     const holds = await this.prisma.walletHold.findMany({ where: { walletId: wallet.id, releasedAt: null } });
     const held = holds.reduce((s, h) => s + h.amount, 0);

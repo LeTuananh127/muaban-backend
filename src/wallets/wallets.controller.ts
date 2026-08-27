@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/
 import { WalletsService } from './wallets.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { Throttle } from '@nestjs/throttler';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('wallet')
@@ -53,6 +54,23 @@ export class WalletsController {
     return this.walletsService.deduct(req.user.userId, amount, reference);
   }
 
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Post('withdraw/send-otp')
+  sendWithdrawOtp(
+    @Request() req,
+    @Body('amount') amount: number,
+    @Body('bankName') bankName: string,
+    @Body('accountNo') accountNo: string,
+  ) {
+    return this.walletsService.sendWithdrawOtp(
+      req.user.userId,
+      amount,
+      bankName,
+      accountNo,
+    );
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('withdraw')
   requestWithdraw(
     @Request() req,
@@ -60,6 +78,7 @@ export class WalletsController {
     @Body('bankName') bankName: string,
     @Body('accountNo') accountNo: string,
     @Body('accountName') accountName: string,
+    @Body('otp') otp?: string,
   ) {
     return this.walletsService.requestWithdraw(
       req.user.userId,
@@ -67,6 +86,7 @@ export class WalletsController {
       bankName,
       accountNo,
       accountName,
+      otp,
     );
   }
 

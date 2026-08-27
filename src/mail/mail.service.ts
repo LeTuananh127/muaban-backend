@@ -256,4 +256,37 @@ export class MailService {
     `;
     return this.sendMail(toEmail, subject, html, true);
   }
+
+  async sendWithdrawOtpEmail(toEmail: string, userName: string, amount: number, bankName: string, accountNo: string, otp: string) {
+    const subject = `🔒 [Bazaar 2FA] Mã OTP xác thực yêu cầu rút tiền: ${otp}`;
+    const formattedAmount = amount.toLocaleString('vi-VN');
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; padding: 24px; border: 1px solid #e0e7ff; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <span style="background-color: #7c3aed; color: #ffffff; font-weight: 900; padding: 4px 12px; border-radius: 6px; font-size: 18px; letter-spacing: 1px;">BAZAAR</span>
+          <h2 style="color: #4338ca; margin-top: 12px; font-size: 20px;">Xác thực 2 bước rút tiền (2FA OTP)</h2>
+        </div>
+        <p>Xin chào <strong>${userName}</strong>,</p>
+        <p>Hệ thống nhận được yêu cầu rút tiền từ Ví điện tử Bazaar của bạn với thông tin chi tiết:</p>
+        
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 16px 0; font-size: 14px; line-height: 1.6;">
+          <div>💰 <strong>Số tiền yêu cầu:</strong> <span style="color: #dc2626; font-weight: bold; font-size: 16px;">${formattedAmount} VNĐ</span></div>
+          <div>🏦 <strong>Ngân hàng nhận:</strong> <strong>${bankName}</strong></div>
+          <div>💳 <strong>Số tài khoản:</strong> <span style="font-family: monospace; font-weight: bold;">${accountNo}</span></div>
+        </div>
+
+        <p>Để hoàn tất lệnh rút tiền an toàn, vui lòng nhập mã xác thực OTP 6 số dưới đây vào hệ thống:</p>
+        
+        <div style="text-align: center; margin: 24px 0;">
+          <span style="font-size: 34px; font-weight: bold; letter-spacing: 8px; color: #7c3aed; background: #f3e8ff; padding: 12px 28px; border-radius: 10px; font-family: monospace; display: inline-block; border: 2px dashed #c084fc;">${otp}</span>
+        </div>
+
+        <p style="color: #64748b; font-size: 13px; text-align: center;">⏰ Mã OTP này có hiệu lực trong vòng <strong>5 phút</strong>.</p>
+        <p style="color: #ef4444; font-size: 12px; font-weight: bold; margin-top: 16px;">⚠️ CẢNH BÁO BẢO MẬT: Tuyệt đối KHÔNG cung cấp mã OTP này cho bất kỳ ai, kể cả nhân viên hỗ trợ của sàn để tránh bị chiếm đoạt tài sản.</p>
+        <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;" />
+        <p style="font-size: 11px; color: #94a3b8; text-align: center;">Bazaar - Sàn TMĐT & Đấu Giá Đồ Cũ An Toàn | Hỗ trợ: 1900 8888</p>
+      </div>
+    `;
+    return this.sendMail(toEmail, subject, html, true);
+  }
 }
