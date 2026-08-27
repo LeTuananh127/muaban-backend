@@ -85,7 +85,7 @@ export class MessagesService {
           lastMessage: msg.content,
           lastMessageTime: msg.createdAt,
           unreadCount: msg.receiverId === userId && !msg.isRead ? 1 : 0,
-          online: false,
+          online: this.messagesGateway.isUserOnline(otherUser.id),
         });
       } else {
         const conv = conversations.get(otherUser.id);
