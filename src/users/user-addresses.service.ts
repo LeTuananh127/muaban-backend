@@ -18,8 +18,8 @@ export class CreateAddressDto {
   province: string;
 
   @IsString()
-  @IsNotEmpty()
-  district: string;
+  @IsOptional()
+  district?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -114,7 +114,7 @@ export class UserAddressesService {
           phone: dto.phone,
           phoneVerified: false, // Must be verified
           province: dto.province,
-          district: dto.district,
+          district: dto.district || '',
           ward: dto.ward,
           detailAddress: dto.detailAddress,
           isDefault: finalIsDefault,
