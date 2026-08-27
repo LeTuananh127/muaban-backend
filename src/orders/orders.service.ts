@@ -255,6 +255,70 @@ export class OrdersService {
         }
       }
 
+      try {
+        const orderShortId = orderId.slice(-6);
+        const productName = updatedOrder.auction?.product?.title || 'Sản phẩm';
+
+        if (normalizedStatus === OrderStatus.PAID) {
+          await this.notificationsService.createNotification(updatedOrder.sellerId, {
+            title: '💳 Đơn hàng đã được thanh toán',
+            content: `Người mua đã thanh toán đơn hàng #${orderShortId} (${productName}). Vui lòng đóng gói và bàn giao cho đơn vị vận chuyển.`,
+            type: 'ORDER_PAID',
+            referenceId: orderId,
+          });
+        } else if (normalizedStatus === OrderStatus.SHIPPED) {
+          const provider = shippingProvider || updatedOrder.shippingProvider || 'ĐVVC';
+          const tracking = trackingCode || updatedOrder.trackingCode || '';
+          await this.notificationsService.createNotification(updatedOrder.buyerId, {
+            title: '🚚 Đơn hàng đang được giao',
+            content: `Đơn hàng #${orderShortId} (${productName}) đã được giao cho ${provider}${tracking ? ` (Mã VĐ: ${tracking})` : ''}. Vui lòng chú ý điện thoại để nhận hàng!`,
+            type: 'ORDER_SHIPPED',
+            referenceId: orderId,
+          });
+        } else if (normalizedStatus === OrderStatus.DELIVERED) {
+          await this.notificationsService.createNotification(updatedOrder.sellerId, {
+            title: '📦 Người mua đã nhận được hàng',
+            content: `Đơn hàng #${orderShortId} (${productName}) đã được giao thành công tới người mua.`,
+            type: 'ORDER_DELIVERED',
+            referenceId: orderId,
+          });
+          await this.notificationsService.createNotification(updatedOrder.buyerId, {
+            title: '📦 Đã nhận hàng thành công',
+            content: `Đơn hàng #${orderShortId} (${productName}) đã giao thành công. Bạn có 3 ngày để kiểm tra hoặc gửi yêu cầu hoàn tiền nếu có sự cố.`,
+            type: 'ORDER_DELIVERED',
+            referenceId: orderId,
+          });
+        } else if (normalizedStatus === OrderStatus.COMPLETED) {
+          await this.notificationsService.createNotification(updatedOrder.sellerId, {
+            title: '🎉 Đơn hàng đã hoàn tất',
+            content: `Đơn hàng #${orderShortId} (${productName}) đã hoàn tất. Tiền hàng ${new Intl.NumberFormat('vi-VN').format(updatedOrder.totalAmount)} đ đã được giải ngân vào Ví của bạn!`,
+            type: 'ORDER_COMPLETED',
+            referenceId: orderId,
+          });
+          await this.notificationsService.createNotification(updatedOrder.buyerId, {
+            title: '🎉 Đơn hàng đã hoàn tất',
+            content: `Đơn hàng #${orderShortId} (${productName}) đã hoàn tất. Cảm ơn bạn đã tin tưởng giao dịch trên Bazaar!`,
+            type: 'ORDER_COMPLETED',
+            referenceId: orderId,
+          });
+        } else if (normalizedStatus === OrderStatus.CANCELLED) {
+          await this.notificationsService.createNotification(updatedOrder.buyerId, {
+            title: '⚠️ Đơn hàng đã bị hủy',
+            content: `Đơn hàng #${orderShortId} (${productName}) đã bị hủy.`,
+            type: 'ORDER_CANCELLED',
+            referenceId: orderId,
+          });
+          await this.notificationsService.createNotification(updatedOrder.sellerId, {
+            title: '⚠️ Đơn hàng đã bị hủy',
+            content: `Đơn hàng #${orderShortId} (${productName}) đã bị hủy.`,
+            type: 'ORDER_CANCELLED',
+            referenceId: orderId,
+          });
+        }
+      } catch (notifErr) {
+        console.error('Failed to send order status notification:', notifErr);
+      }
+
       return updatedOrder;
     } catch (error) {
       console.error('Failed to update order status', { orderId, userId, status: normalizedStatus, error });
@@ -306,6 +370,18 @@ export class OrdersService {
         status: 'PENDING',
       },
     });
+
+    try {
+      const orderShortId = orderId.slice(-6);
+      await this.notificationsService.createNotification(order.sellerId, {
+        title: '⚠️ Yêu cầu Trả hàng / Hoàn tiền mới',
+        content: `Người mua vừa gửi yêu cầu hoàn tiền cho đơn hàng #${orderShortId}. Lý do: "${reason.trim()}". Vui lòng kiểm tra và phản hồi.`,
+        type: 'REFUND_REQUESTED',
+        referenceId: orderId,
+      });
+    } catch (e) {
+      console.log('Could not send refund request notification:', e);
+    }
 
     return refund;
   }
