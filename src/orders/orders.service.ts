@@ -432,6 +432,18 @@ export class OrdersService {
       console.log('Could not create notification:', err?.message);
     }
 
+    try {
+      await this.prisma.refundRequest.update({
+        where: { id: refundId },
+        data: {
+          processedAt: new Date(),
+          note: refund.note ? `${refund.note} | [RETURN_CONFIRMED] Đã nhận lại hàng và hoàn tiền` : '[RETURN_CONFIRMED] Đã nhận lại hàng và hoàn tiền',
+        },
+      });
+    } catch (err) {
+      console.log('Could not update refund request note:', err?.message);
+    }
+
     return this.prisma.order.update({
       where: { id: orderId },
       data: { status: 'CANCELLED' },
