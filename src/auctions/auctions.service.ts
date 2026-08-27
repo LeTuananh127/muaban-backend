@@ -384,4 +384,88 @@ export class AuctionsService {
       throw new BadRequestException('Unable to buy now');
     }
   }
+
+  async relistAuction(
+    auctionId: string,
+    sellerId: string,
+    dto: { startingPrice?: number; bidIncrement?: number; durationDays?: number; buyNowPrice?: number; endTime?: string },
+  ) {
+    const auction = await this.prisma.auction.findUnique({
+      where: { id: auctionId },
+      include: { product: true, order: true },
+    });
+    if (!auction) throw new NotFoundException('Không tìm thấy phiên đấu giá');
+    if (auction.product.ownerId !== sellerId) {
+      throw new ForbiddenException('Bạn không phải chủ sở hữu của sản phẩm này');
+    }
+
+    // Check if there is already a completed or paid order
+    if (auction.order) {
+      const s = auction.order.status;
+      if (
+        s === OrderStatus.COMPLETED ||
+        s === OrderStatus.PAID ||
+        s === OrderStatus.SHIPPED ||
+        s === OrderStatus.DELIVERED
+      ) {
+        throw new BadRequestException('Sản phẩm này đã có đơn hàng thành công, không thể tái đăng đấu giá');
+      }
+    }
+
+    const now = new Date();
+    let newEnd: Date;
+    if (dto.endTime) {
+      newEnd = new Date(dto.endTime);
+    } else {
+      const days = dto.durationDays && dto.durationDays > 0 ? dto.durationDays : 3;
+      newEnd = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    }
+
+    if (newEnd <= now) {
+      throw new BadRequestException('Thời gian kết thúc phải lớn hơn thời gian hiện tại');
+    }
+
+    const newStartingPrice = dto.startingPrice && dto.startingPrice > 0 ? dto.startingPrice : auction.startingPrice;
+    const newBidIncrement = dto.bidIncrement && dto.bidIncrement > 0 ? dto.bidIncrement : auction.bidIncrement;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Update product to IN_AUCTION
+      await tx.product.update({
+        where: { id: auction.productId },
+        data: {
+          status: 'IN_AUCTION',
+          ...(dto.buyNowPrice !== undefined ? { buyNowPrice: dto.buyNowPrice } : {}),
+        },
+      });
+
+      // Update auction to ACTIVE
+      const updated = await tx.auction.update({
+        where: { id: auctionId },
+        data: {
+          status: 'ACTIVE',
+          startTime: now,
+          endTime: newEnd,
+          startingPrice: newStartingPrice,
+          currentPrice: newStartingPrice,
+          bidIncrement: newBidIncrement,
+          currentWinnerId: null,
+        },
+        include: {
+          product: {
+            include: {
+              category: true,
+              owner: {
+                select: { id: true, name: true, avatar: true, rating: true, totalReviews: true },
+              },
+            },
+          },
+        },
+      });
+
+      return {
+        message: 'Tái đăng đấu giá thành công!',
+        auction: updated,
+      };
+    });
+  }
 }

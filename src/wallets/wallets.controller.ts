@@ -13,6 +13,16 @@ export class WalletsController {
     return this.walletsService.getMyWallet(req.user.userId);
   }
 
+  @Get('escrows')
+  getMyEscrows(@Request() req) {
+    return this.walletsService.getMyEscrowsAndHolds(req.user.userId);
+  }
+
+  @Get('transactions')
+  getMyTransactions(@Request() req) {
+    return this.walletsService.getMyTransactions(req.user.userId);
+  }
+
   @Post('topup')
   topUp(@Request() req, @Body('amount') amount: number, @Body('reference') reference?: string) {
     return this.walletsService.topUp(req.user.userId, amount, reference);

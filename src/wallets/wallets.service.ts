@@ -115,7 +115,13 @@ export class WalletsService {
   }
 
   async requestWithdraw(userId: string, amount: number, bankName: string, accountNo: string, accountName: string) {
-    if (amount <= 0) throw new BadRequestException('Amount must be positive');
+    if (!amount || amount <= 0) throw new BadRequestException('Số tiền rút không hợp lệ');
+    if (amount < 50000) {
+      throw new BadRequestException('Số tiền rút tối thiểu là 50.000 VNĐ');
+    }
+    if (!bankName || !bankName.trim()) throw new BadRequestException('Vui lòng chọn ngân hàng nhận tiền');
+    if (!accountNo || !accountNo.trim()) throw new BadRequestException('Vui lòng nhập số tài khoản ngân hàng');
+    if (!accountName || !accountName.trim()) throw new BadRequestException('Vui lòng nhập tên chủ tài khoản');
     
     const wallet = await this.getOrCreateWallet(userId);
     const holds = await this.prisma.walletHold.findMany({ where: { walletId: wallet.id, releasedAt: null } });
@@ -127,15 +133,19 @@ export class WalletsService {
     const pendingWithdrawAmount = pendingWithdrawals.reduce((s, w) => s + w.amount, 0);
 
     const available = wallet.balance - held - pendingWithdrawAmount;
-    if (available < amount) throw new BadRequestException('Số dư khả dụng không đủ để thực hiện yêu cầu rút tiền');
+    if (available < amount) {
+      throw new BadRequestException(
+        `Số dư khả dụng không đủ để rút tiền (Khả dụng: ${new Intl.NumberFormat('vi-VN').format(Math.max(0, available))} đ, Yêu cầu: ${new Intl.NumberFormat('vi-VN').format(amount)} đ)`
+      );
+    }
 
     return this.prisma.withdrawRequest.create({
       data: {
         userId,
         amount,
-        bankName,
-        accountNo,
-        accountName,
+        bankName: bankName.trim(),
+        accountNo: accountNo.trim(),
+        accountName: accountName.trim().toUpperCase(),
         status: 'PENDING',
       },
     });
@@ -238,6 +248,71 @@ export class WalletsService {
       message: `Nạp thành công ${amount.toLocaleString('vi-VN')} đ qua VNPAY Sandbox!`,
       wallet: updatedWallet,
     };
+  }
+
+  async getMyEscrowsAndHolds(userId: string) {
+    const wallet = await this.getOrCreateWallet(userId);
+
+    const holds = await this.prisma.walletHold.findMany({
+      where: { walletId: wallet.id },
+      include: {
+        order: {
+          include: {
+            auction: {
+              include: { product: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const buyerEscrows = await this.prisma.escrow.findMany({
+      where: {
+        orders: { some: { buyerId: userId } },
+      },
+      include: {
+        orders: {
+          include: {
+            auction: { include: { product: true } },
+            seller: { select: { id: true, name: true, avatar: true } },
+            buyer: { select: { id: true, name: true, avatar: true } },
+          },
+        },
+      },
+      orderBy: { heldAt: 'desc' },
+    });
+
+    const sellerEscrows = await this.prisma.escrow.findMany({
+      where: {
+        orders: { some: { sellerId: userId } },
+      },
+      include: {
+        orders: {
+          include: {
+            auction: { include: { product: true } },
+            seller: { select: { id: true, name: true, avatar: true } },
+            buyer: { select: { id: true, name: true, avatar: true } },
+          },
+        },
+      },
+      orderBy: { heldAt: 'desc' },
+    });
+
+    return {
+      holds,
+      buyerEscrows,
+      sellerEscrows,
+    };
+  }
+
+  async getMyTransactions(userId: string) {
+    const wallet = await this.getOrCreateWallet(userId);
+    return this.prisma.walletTransaction.findMany({
+      where: { walletId: wallet.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
   }
 }
 

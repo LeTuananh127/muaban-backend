@@ -43,4 +43,15 @@ export class AuctionsController {
   buyNow(@Param('id') id: string, @Request() req) {
     return this.auctionsService.buyNow(id, req.user.userId);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.USER)
+  @Post(':id/relist')
+  relist(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() dto: { startingPrice?: number; bidIncrement?: number; durationDays?: number; buyNowPrice?: number; endTime?: string },
+  ) {
+    return this.auctionsService.relistAuction(id, req.user.userId, dto);
+  }
 }
