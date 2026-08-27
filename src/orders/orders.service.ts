@@ -438,6 +438,40 @@ export class OrdersService {
     });
   }
 
+  async updateReturnShipping(buyerId: string, refundId: string, returnProvider: string, returnTrackingCode: string) {
+    if (!returnProvider || !returnProvider.trim()) throw new BadRequestException('Vui lòng chọn đơn vị vận chuyển hoàn hàng');
+    if (!returnTrackingCode || !returnTrackingCode.trim()) throw new BadRequestException('Vui lòng nhập mã vận đơn hoàn hàng');
+
+    const refund = await this.prisma.refundRequest.findUnique({ where: { id: refundId }, include: { order: true } });
+    if (!refund) throw new NotFoundException('Refund request not found');
+    if (refund.buyerId !== buyerId) throw new ForbiddenException('Chỉ người mua mới có quyền cập nhật thông tin hoàn hàng');
+
+    const cleanProvider = returnProvider.trim();
+    const cleanTracking = returnTrackingCode.trim();
+    const formattedNote = `[RETURN_SHIPPING] Provider: ${cleanProvider} | Tracking: ${cleanTracking}`;
+
+    const updated = await this.prisma.refundRequest.update({
+      where: { id: refundId },
+      data: { note: formattedNote },
+    });
+
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId: refund.sellerId,
+          title: '🚚 Người mua đã gửi hàng hoàn',
+          content: `Người mua đã gửi hàng hoàn qua ${cleanProvider} - Mã vận đơn: ${cleanTracking}. Vui lòng theo dõi và xác nhận khi nhận được hàng!`,
+          type: 'RETURN_SHIPPED',
+          referenceId: refund.orderId,
+        },
+      });
+    } catch (e) {
+      console.log('Error creating return notification:', e);
+    }
+
+    return updated;
+  }
+
   async rejectRefund(sellerId: string, refundId: string, note?: string, sellerImages?: string[]) {
     const refund = await this.prisma.refundRequest.findUnique({ where: { id: refundId } });
     if (!refund) throw new NotFoundException('Refund request not found');

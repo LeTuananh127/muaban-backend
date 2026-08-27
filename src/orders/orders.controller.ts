@@ -64,6 +64,16 @@ export class OrdersController {
     return this.ordersService.confirmReturnReceived(req.user.userId, refundId, note);
   }
 
+  @Post('refund/:refundId/return-shipping')
+  updateReturnShipping(
+    @Request() req,
+    @Param('refundId') refundId: string,
+    @Body('returnProvider') returnProvider: string,
+    @Body('returnTrackingCode') returnTrackingCode: string,
+  ) {
+    return this.ordersService.updateReturnShipping(req.user.userId, refundId, returnProvider, returnTrackingCode);
+  }
+
   @Post('refund/:refundId/reject')
   rejectRefund(
     @Request() req,
