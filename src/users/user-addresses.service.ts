@@ -199,6 +199,30 @@ export class UserAddressesService {
 
   async sendOtp(userId: string, addressId: string) {
     const address = await this.getAddress(userId, addressId);
+
+    // If already verified, do not send SMS to save credits
+    if (address.phoneVerified) {
+      return {
+        message: 'Số điện thoại này đã được xác thực trước đó!',
+      };
+    }
+
+    const existingVerification = await this.prisma.otpVerification.findUnique({
+      where: { phone: address.phone },
+    });
+
+    // Rate-limit: if OTP was sent less than 60s ago, reuse existing OTP and do not send duplicate SMS
+    const now = new Date();
+    if (
+      existingVerification &&
+      existingVerification.expiresAt > now &&
+      now.getTime() - existingVerification.createdAt.getTime() < 60 * 1000
+    ) {
+      return {
+        message: 'Mã OTP đã được gửi. Vui lòng kiểm tra tin nhắn hoặc chờ 60s để yêu cầu lại.',
+        otp: process.env.SHOW_TEST_OTP === 'true' ? existingVerification.otp : undefined,
+      };
+    }
     
     // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();

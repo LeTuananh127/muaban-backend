@@ -22,7 +22,7 @@ export class SmsService {
 
   async sendSmsOtp(phone: string, otp: string): Promise<boolean> {
     const formattedPhone = this.formatPhone(phone);
-    const body = `[Bazaar] Ma OTP xac thuc so dien thoai cua ban la: ${otp}. Ma co hieu luc trong 5 phut.`;
+    const body = `[Bazaar] OTP: ${otp}. Het han sau 5p.`;
 
     // 0. Ưu tiên cao nhất: Brevo Transactional SMS API (nếu có BREVO_API_KEY)
     const brevoKey = (process.env.BREVO_API_KEY || '').trim();
