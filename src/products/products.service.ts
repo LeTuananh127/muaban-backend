@@ -126,19 +126,25 @@ export class ProductsService {
         auction: {
           include: {
             currentWinner: { select: { id: true, name: true, avatar: true } },
-            order: true,
+            order: {
+              include: {
+                refundRequests: { orderBy: { createdAt: 'desc' } },
+                payment: true,
+              },
+            },
             bids: {
               include: {
-                user: { select: { id: true, name: true, avatar: true } }
+                user: { select: { id: true, name: true, avatar: true } },
               },
-              orderBy: { amount: 'desc' }
+              orderBy: { amount: 'desc' },
             },
             _count: {
-              select: { bids: true }
-            }
-          }
-        }
+              select: { bids: true },
+            },
+          },
+        },
       },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
