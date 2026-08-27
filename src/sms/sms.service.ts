@@ -26,14 +26,11 @@ export class SmsService {
 
     // 0. Ưu tiên cao nhất: Brevo Transactional SMS API (nếu có BREVO_API_KEY)
     const brevoKey = (process.env.BREVO_API_KEY || '').trim();
-    if (brevoKey && brevoKey.startsWith('xkeysib-')) {
+    if (brevoKey) {
       try {
         let brevoPhone = phone.replace(/\D/g, '');
         if (brevoPhone.startsWith('0')) {
           brevoPhone = '84' + brevoPhone.substring(1);
-        }
-        if (!brevoPhone.startsWith('+')) {
-          brevoPhone = '+' + brevoPhone;
         }
 
         const smsRes = await fetch('https://api.brevo.com/v3/transactionalSMS/send', {
@@ -56,7 +53,7 @@ export class SmsService {
           this.logger.log(`[Brevo SMS] ✅ Transactional SMS sent to ${brevoPhone}: ${smsData.messageId || smsData.reference}`);
           return true;
         } else {
-          this.logger.warn(`[Brevo SMS Warning] ${JSON.stringify(smsData)}`);
+          this.logger.warn(`[Brevo SMS Warning] Status ${smsRes.status}: ${JSON.stringify(smsData)}`);
         }
       } catch (err) {
         this.logger.error('[Brevo SMS Error] Failed to send Transactional SMS', err);
