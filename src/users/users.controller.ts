@@ -18,6 +18,12 @@ export class UsersController {
     return this.usersService.getUserAnalytics(req.user.userId, period);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('profile/my-activities')
+  async getMyActivities(@Request() req) {
+    return this.usersService.getUserRecentActivities(req.user.userId);
+  }
+
   @Get('profile/:id')
   async getProfile(@Param('id') id: string) {
     return this.usersService.findById(id);

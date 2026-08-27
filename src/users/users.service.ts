@@ -342,4 +342,86 @@ export class UsersService {
 
     return { period, labels, series, totals };
   }
+
+  async getUserRecentActivities(userId: string) {
+    const [bids, buyingOrders, myProducts] = await Promise.all([
+      this.prisma.bid.findMany({
+        where: { userId },
+        include: {
+          auction: {
+            include: { product: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      this.prisma.order.findMany({
+        where: { buyerId: userId },
+        include: {
+          auction: {
+            include: { product: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      this.prisma.product.findMany({
+        where: { ownerId: userId },
+        include: {
+          auction: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    const activities: Array<{
+      id: string;
+      action: string;
+      item: string;
+      amount: number;
+      time: Date;
+      type: 'bid' | 'buy' | 'sell';
+      link?: string;
+    }> = [];
+
+    for (const b of bids) {
+      activities.push({
+        id: `bid_${b.id}`,
+        action: 'Đặt giá đấu',
+        item: b.auction?.product?.title || 'Sản phẩm đấu giá',
+        amount: b.amount,
+        time: b.createdAt,
+        type: 'bid',
+        link: b.auctionId ? `/auction/${b.auctionId}` : undefined,
+      });
+    }
+
+    for (const o of buyingOrders) {
+      activities.push({
+        id: `order_${o.id}`,
+        action: 'Mua hàng / Thắng đấu giá',
+        item: o.auction?.product?.title || `Đơn hàng #${o.id.slice(0, 8)}`,
+        amount: o.totalAmount,
+        time: o.createdAt,
+        type: 'buy',
+        link: `/orders`,
+      });
+    }
+
+    for (const p of myProducts) {
+      activities.push({
+        id: `product_${p.id}`,
+        action: 'Đăng bán sản phẩm',
+        item: p.title,
+        amount: p.auction?.startingPrice ?? 0,
+        time: p.createdAt,
+        type: 'sell',
+        link: p.auction?.id ? `/auction/${p.auction.id}` : `/my-products`,
+      });
+    }
+
+    activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+    return activities.slice(0, 8);
+  }
 }
