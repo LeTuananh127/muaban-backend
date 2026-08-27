@@ -478,6 +478,11 @@ export class OrdersService {
     if (refund.sellerId !== sellerId) throw new ForbiddenException('Only the seller can reject this refund');
     if (refund.status !== 'PENDING') throw new BadRequestException('Refund request is not pending');
 
+    let formattedNote = note || 'Người bán từ chối yêu cầu hoàn tiền';
+    if (sellerImages && sellerImages.length > 0) {
+      formattedNote = `[SELLER_PROOF] urls: ${sellerImages.join(',')} | Reason: ${formattedNote}`;
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.refundRequest.update({
         where: { id: refundId },
@@ -485,19 +490,31 @@ export class OrdersService {
           status: 'REJECTED',
           processedAt: new Date(),
           processedBy: sellerId,
-          note: note || 'Người bán từ chối yêu cầu hoàn tiền',
+          note: formattedNote,
         },
       });
-      // Người bán từ chối -> Đơn hàng cập nhật trạng thái REFUND_REJECTED (Chưa chuyển ngay sang DISPUTED)
+      // Người bán từ chối -> Đơn hàng cập nhật trạng thái DISPUTED để chờ 2 bên khiếu nại hoặc Admin phân xử
       try {
         await tx.order.update({
           where: { id: refund.orderId },
-          data: { status: 'REFUND_REJECTED' as any },
+          data: { status: 'DISPUTED' },
         });
-      } catch (_) {
-        // Fallback nếu enum schema Prisma chưa có REFUND_REJECTED
-      }
+      } catch (_) {}
     });
+
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId: refund.buyerId,
+          title: '❌ Người bán từ chối yêu cầu hoàn tiền',
+          content: `Người bán đã từ chối yêu cầu hoàn tiền đơn #${refund.orderId}. Lý do: "${note || 'Không đồng ý'}". Bằng chứng phản bác đã được ghi nhận. Bạn có thể khiếu nại lên Admin nếu không đồng ý.`,
+          type: 'REFUND_REJECTED',
+          referenceId: refund.orderId,
+        },
+      });
+    } catch (e) {
+      console.log('Error creating notification:', e);
+    }
 
     return {
       message: 'Người bán đã từ chối yêu cầu hoàn tiền. Người mua có quyền khiếu nại lên Admin nếu không đồng ý.',
@@ -513,25 +530,45 @@ export class OrdersService {
       throw new BadRequestException('Chỉ có thể khiếu nại lên Admin sau khi Người bán từ chối yêu cầu Refund');
     }
 
+    let escalatedNote = refund.note || '';
+    if (reason) {
+      escalatedNote = `${escalatedNote} | [Khiếu nại Admin]: ${reason}`;
+    }
+
+    const mergedImages = buyerImages && buyerImages.length > 0 ? [...refund.images, ...buyerImages] : refund.images;
+
     await this.prisma.$transaction(async (tx) => {
       await tx.refundRequest.update({
         where: { id: refundId },
         data: {
           status: 'REJECTED',
-          note: reason ? `[Khiếu nại Admin] ${reason}` : refund.note,
-          images: buyerImages && buyerImages.length > 0 ? buyerImages : refund.images,
+          note: escalatedNote,
+          images: mergedImages,
         },
       });
 
-      // Khi người mua không đồng ý và khiếu nại -> Đơn hàng mới chính thức đóng băng DISPUTED cho Admin xử lý
       await tx.order.update({
         where: { id: refund.orderId },
         data: { status: 'DISPUTED' },
       });
     });
 
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId: refund.sellerId,
+          title: '⚖️ Người mua đã khiếu nại lên Admin',
+          content: `Người mua đã gửi khiếu nại đơn hàng #${refund.orderId} lên Ban Quản Trị. Toàn bộ bằng chứng của 2 bên đang được chuyển cho Admin thẩm định và phân xử.`,
+          type: 'DISPUTE_ESCALATED',
+          referenceId: refund.orderId,
+        },
+      });
+    } catch (e) {
+      console.log('Error creating dispute escalation notification:', e);
+    }
+
     return {
-      message: 'Đã gửi khiếu nại lên Admin thành công. Đơn hàng đang được đóng băng bảo hộ chờ Admin phán quyết.',
+      message: 'Đã gửi khiếu nại lên Admin thành công. Đơn hàng đang được bảo hộ chờ Admin phán quyết.',
       orderId: refund.orderId,
     };
   }
@@ -616,8 +653,32 @@ export class OrdersService {
     if (latestRefundRequest) {
       await this.prisma.refundRequest.update({
         where: { id: latestRefundRequest.id },
-        data: { status: 'APPROVED', note: `[Phán quyết Admin - CHẤP NHẬN REFUND]: ${decisionReason}` },
+        data: { status: 'APPROVED', note: `[Phán quyết Admin - CHẤP NHẬN HOÀN TIỀN]: ${decisionReason}` },
       });
+    }
+
+    // Notify BOTH Buyer and Seller with Admin's verdict and reasoning!
+    try {
+      await this.prisma.notification.createMany({
+        data: [
+          {
+            userId: order.buyerId,
+            title: '⚖️ Phán quyết tranh chấp: Chấp nhận hoàn tiền',
+            content: `Ban Quản Trị đã phân xử CHẤP NHẬN HOÀN TIỀN cho bạn trong đơn hàng #${order.id}. Lý do phán quyết: "${decisionReason}". Số tiền đã được hoàn 100% về Ví Bazaar của bạn.`,
+            type: 'DISPUTE_RESOLVED',
+            referenceId: order.id,
+          },
+          {
+            userId: order.sellerId,
+            title: '⚖️ Phán quyết tranh chấp: Hoàn tiền cho Người mua',
+            content: `Ban Quản Trị đã phân xử chấp nhận yêu cầu hoàn tiền của Người mua trong đơn hàng #${order.id}. Lý do phán quyết: "${decisionReason}". Số tiền tạm giữ đã được hoàn lại cho người mua.`,
+            type: 'DISPUTE_RESOLVED',
+            referenceId: order.id,
+          },
+        ],
+      });
+    } catch (e) {
+      console.log('Error creating dispute resolution notifications:', e);
     }
 
     return this.prisma.order.update({
@@ -655,6 +716,30 @@ export class OrdersService {
         where: { id: latestRefundRequest.id },
         data: { note: `[Phán quyết Admin - BÁC BỎ KHIẾU NẠI]: ${decisionReason}` },
       });
+    }
+
+    // Notify BOTH Buyer and Seller with Admin's verdict and reasoning!
+    try {
+      await this.prisma.notification.createMany({
+        data: [
+          {
+            userId: order.buyerId,
+            title: '⚖️ Phán quyết tranh chấp: Bác bỏ khiếu nại',
+            content: `Ban Quản Trị đã BÁC BỎ khiếu nại của bạn trong đơn hàng #${order.id}. Lý do phán quyết: "${decisionReason}". Tiền tạm giữ đã được giải ngân cho Người bán.`,
+            type: 'DISPUTE_RESOLVED',
+            referenceId: order.id,
+          },
+          {
+            userId: order.sellerId,
+            title: '⚖️ Phán quyết tranh chấp: Giải ngân cho Bạn',
+            content: `Ban Quản Trị đã phân xử BÁC BỎ khiếu nại trong đơn hàng #${order.id}. Lý do phán quyết: "${decisionReason}". Toàn bộ tiền hàng đã được giải ngân vào Ví Bazaar của bạn.`,
+            type: 'DISPUTE_RESOLVED',
+            referenceId: order.id,
+          },
+        ],
+      });
+    } catch (e) {
+      console.log('Error creating dispute resolution notifications:', e);
     }
 
     return this.prisma.order.update({
