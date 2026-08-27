@@ -413,12 +413,18 @@ export class WalletsService {
       orderBy: { heldAt: 'desc' },
     });
 
+    const pendingWithdrawals = await this.prisma.withdrawRequest.findMany({
+      where: { userId, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
       feePercent,
       isCustomFee: user?.customFeePercent !== undefined && user?.customFeePercent !== null,
       holds,
       buyerEscrows,
       sellerEscrows,
+      pendingWithdrawals,
     };
   }
 
