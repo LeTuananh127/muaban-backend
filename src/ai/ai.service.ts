@@ -561,6 +561,39 @@ Quy tắc ứng xử và nghiệp vụ:
         estimatedMarketValue = 250000;
       }
     } else if (
+      titleLower.includes('vợt') ||
+      titleLower.includes('cầu lông') ||
+      titleLower.includes('yonex') ||
+      titleLower.includes('lining') ||
+      titleLower.includes('victor') ||
+      titleLower.includes('kumpoo') ||
+      titleLower.includes('tennis') ||
+      titleLower.includes('pickleball') ||
+      titleLower.includes('babolat') ||
+      titleLower.includes('wilson') ||
+      titleLower.includes('astrox')
+    ) {
+      if (titleLower.includes('100zz') || titleLower.includes('88d pro') || titleLower.includes('77 pro') || titleLower.includes('axforce 100') || titleLower.includes('pure drive')) {
+        // Vợt cao cấp thi đấu (Mua mới ~3.5tr - 4.5tr -> Đồ cũ like new ~2.4tr - 2.8tr)
+        estimatedMarketValue = 2500000;
+      } else if (
+        titleLower.includes('astrox 77 play') ||
+        titleLower.includes('77 play') ||
+        titleLower.includes('astrox 88 play') ||
+        titleLower.includes('play') ||
+        titleLower.includes('tour') ||
+        titleLower.includes('axforce') ||
+        titleLower.includes('halbertec') ||
+        titleLower.includes('windstorm')
+      ) {
+        // Vợt phân khúc tầm trung phổ biến như Yonex Astrox 77 Play, Astrox 88 Play (Mua mới ~1.050.000 - 1.350.000 VNĐ -> Đồ cũ Like New ~750.000 - 850.000 VNĐ)
+        estimatedMarketValue = 800000;
+      } else if (titleLower.includes('yonex') || titleLower.includes('lining') || titleLower.includes('victor')) {
+        estimatedMarketValue = 650000;
+      } else {
+        estimatedMarketValue = 350000;
+      }
+    } else if (
       titleLower.includes('máy cạo râu') ||
       titleLower.includes('dao cạo') ||
       titleLower.includes('tông đơ') ||
@@ -690,18 +723,33 @@ Chúc các bạn đấu giá may mắn và chốt được sản phẩm ưng ý!
 
     try {
       const prompt = `
-Bạn là Chuyên gia AI Cao cấp về Thẩm định Giá & Sáng tạo Nội dung Bán hàng (Copywriting) trên sàn đấu giá đồ cũ Bazzar.
+Bạn là Chuyên gia AI Thẩm định Giá & Sáng tạo Nội dung Bán hàng (Copywriting) hàng đầu trên sàn đấu giá đồ cũ Bazzar.
 
 THÔNG TIN SẢN PHẨM TỪ NGƯỜI BÁN:
 - Tên sản phẩm: ${title}
 - Phân loại / Danh mục hiện tại: ${category || defaultCategoryName}
 - Tình trạng người bán chọn: ${condition || 'Chưa chọn'}
-- Giá thị trường đồ cũ tham chiếu tại Việt Nam (Benchmark): ${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ
+- Giá đồ cũ ước tính sơ bộ: ${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ
 ${imagePart ? '- Thị giác máy tính (Multimodal Vision): Đã đính kèm ảnh sản phẩm thực tế để bạn soi chi tiết màu sắc, ngoại hình, tem nhãn, độ mới, vết xước.' : '- Không có ảnh đính kèm.'}
 ${historicalContext ? `- Dữ liệu giá quá khứ trên sàn: ${historicalContext}` : ''}
 
-NHIỆM VỤ 1: PHÂN LOẠI DANH MỤC & ĐÁNH GIÁ TÌNH TRẠNG (VISION & CATEGORIZATION)
-1. "suggestedCategoryName": Chọn chính xác 1 trong các danh mục sau của hệ thống:
+NHIỆM VỤ 1: TRA CỨU GIÁ THỊ TRƯỜNG THỰC TẾ & ĐỊNH GIÁ ĐỒ CŨ (REAL-TIME SEARCH & VALUATION)
+1. Hãy vận dụng công cụ tìm kiếm Google Search và kho tri thức thị trường Việt Nam (Shopee, Lazada, Tiki, CellphoneS, VNB Sports, Thế Giới Di Động, Hoàng Hà, ShopVNB...) để tra cứu giá mua mới chính hãng của "${title}".
+2. Định giá ĐỒ CŨ (Second-hand) hợp lý theo tình trạng:
+   - "suggestedBuyNowPrice" (Giá mua ngay):
+     + Đồ cũ Như mới (98% - 99%): Bằng khoảng 65% - 80% giá mua mới thị trường (Ví dụ vợt Yonex Astrox 77 Play mua mới ~1.050.000 - 1.200.000đ -> Giá mua ngay đồ cũ như mới khoảng 750.000đ - 850.000đ).
+     + Đồ cũ Tốt (90% - 95%): Bằng khoảng 50% - 65% giá mua mới.
+     + Hàng gia dụng phổ thông nhỏ (cốc giữ nhiệt, máy cạo râu mini): Giá mua mới ~150k - 200k -> Giá mua ngay đồ cũ ~80k - 120k.
+   - "suggestedStartingPrice" (Giá khởi điểm): Bằng khoảng 40% - 50% của giá mua ngay để kích thích đấu giá sôi nổi.
+   - "suggestedBidIncrement" (Bước giá):
+     + Dưới 300.000 VNĐ: Bước giá 10.000 VNĐ
+     + 300.000 - 1.000.000 VNĐ: Bước giá 20.000 - 50.000 VNĐ
+     + 1.000.000 - 5.000.000 VNĐ: Bước giá 50.000 - 100.000 VNĐ
+     + Trên 10.000.000 VNĐ: Bước giá 200.000 - 500.000 VNĐ.
+   - "suggestedLayout": Chọn "full_banner" (hàng cao cấp >10 triệu), "grid_gallery" (thời trang, đồ thể thao, sưu tầm), hoặc "standard" (đồ thông dụng).
+
+NHIỆM VỤ 2: PHÂN LOẠI DANH MỤC & ĐÁNH GIÁ TÌNH TRẠNG
+1. "suggestedCategoryName": Chọn chính xác 1 trong các danh mục:
    - "Điện thoại & Phụ kiện"
    - "Máy tính & Laptop"
    - "Máy ảnh & Máy quay"
@@ -709,32 +757,15 @@ NHIỆM VỤ 1: PHÂN LOẠI DANH MỤC & ĐÁNH GIÁ TÌNH TRẠNG (VISION & CA
    - "Đồng hồ & Trang sức"
    - "Sách & Truyện tranh"
    - "Thời trang & Giày dép"
-   - "Khác" (Ví dụ: Máy cạo râu, đồ gia dụng, đồ chơi, lego, dụng cụ thể thao, xe cộ,...)
-2. "suggestedCondition": Dựa vào ảnh thực tế và mô tả, chọn 1 trong 4 tình trạng:
-   - "Mới 100%" (Còn nguyên seal/hộp chưa mở)
-   - "Đã sử dụng (Như mới)" (Độ mới 98% - 99%, không vết xước)
-   - "Đã sử dụng (Tốt)" (Độ mới 90% - 95%, có xước dăm nhẹ nhưng bóng đẹp)
-   - "Đã sử dụng (Khá)" (Độ mới 80% - 89%, cũ theo thời gian)
+   - "Khác" (Bao gồm: Vợt cầu lông, dụng cụ thể thao, máy cạo râu, đồ gia dụng, đồ chơi, xe cộ,...)
+2. "suggestedCondition": Chọn 1 trong 4: "Mới 100%" | "Đã sử dụng (Như mới)" | "Đã sử dụng (Tốt)" | "Đã sử dụng (Khá)".
 3. "estimatedConditionPercent": Ước lượng độ mới cụ thể theo %, ví dụ "98%", "95%", "90%".
 
-NHIỆM VỤ 2: ĐỊNH GIÁ THỊ TRƯỜNG ĐỒ CŨ TẠI VIỆT NAM (MARKET VALUATION)
-Đây là nền tảng mua bán ĐỒ CŨ (second-hand), vì vậy:
-- "suggestedBuyNowPrice" (Giá mua ngay): PHẢI THẤP HƠN GIÁ MUA MỚI TRÊN THỊ TRƯỜNG (thường chỉ bằng 55% - 75% giá new tùy theo độ mới).
-  + Định giá bám sát mức tham chiếu (${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ, dao động tối đa ±20%).
-  + LƯU Ý BẮT BUỘC: Không bao giờ định giá mua ngay đồ cũ cao hơn hoặc ngang bằng giá mua mới (Ví dụ máy cạo râu mua mới 170k-200k thì giá mua ngay đồ cũ chỉ từ 90k-120k; cốc giữ nhiệt mua mới 160k thì giá mua ngay chỉ từ 80k-110k).
-- "suggestedStartingPrice" (Giá khởi điểm): Đặt bằng khoảng 40% - 50% của giá mua ngay để kích thích người mua tham gia đấu giá sôi nổi.
-- "suggestedBidIncrement" (Bước giá):
-  + Dưới 300.000 VNĐ: Bước giá 10.000 VNĐ
-  + 300.000 - 1.000.000 VNĐ: Bước giá 20.000 - 50.000 VNĐ
-  + 1.000.000 - 5.000.000 VNĐ: Bước giá 50.000 - 100.000 VNĐ
-  + Trên 10.000.000 VNĐ: Bước giá 200.000 - 500.000 VNĐ.
-- "suggestedLayout": Chọn "full_banner" (hàng xa xỉ/công nghệ cao >10 triệu), "grid_gallery" (thời trang, phụ kiện, bộ sưu tập), hoặc "standard" (đồ thông dụng).
-
-NHIỆM VỤ 3: SÁNG TẠO BÀI MÔ TẢ BẮT BUỘC CÓ MỤC ĐÁNH GIÁ NGOẠI HÌNH ...% (COPYWRITING)
+NHIỆM VỤ 3: SÁNG TẠO BÀI MÔ TẢ CÓ MỤC ĐÁNH GIÁ NGOẠI HÌNH ...% (COPYWRITING)
 Viết bài mô tả bán hàng lôi cuốn, văn phong tự nhiên (khoảng 150 - 250 từ).
 LƯU Ý BẮT BUỘC:
-- Trong bài viết BẮT BUỘC có mục đánh giá ngoại hình cụ thể theo %, ví dụ: "✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (98%)**: Ngoại hình còn mới khoảng 98%, thân máy sáng bóng, lưỡi cạo/màn hình sạch sẽ, không trầy xước cấn móp..."
-- Không đánh số thứ tự (1., 2., 3.). Hãy dùng dấu gạch đầu dòng (-) sạch sẽ và emoji sinh động.
+- Bắt buộc có mục đánh giá ngoại hình cụ thể theo %, ví dụ: "✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (98%)**: Ngoại hình còn mới khoảng 98%, khung vợt/thân máy sáng đẹp, không trầy xước nứt gãy..."
+- Không đánh số thứ tự (1., 2., 3.). Dùng dấu gạch đầu dòng (-) sạch sẽ và emoji sinh động.
 - Lồng ghép cam kết an toàn 100% qua Ví ký quỹ Escrow Bazzar.
 - Kết thúc bằng lời kêu gọi đặt giá sôi nổi.
 
@@ -752,20 +783,40 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
 }
 `;
 
-      const candidateModels = [
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
+      const candidateConfigs: Array<{ model: string; tools?: any[] }> = [
+        {
+          model: 'gemini-2.0-flash',
+          tools: [{ googleSearch: {} } as any],
+        },
+        {
+          model: 'gemini-1.5-flash',
+          tools: [{ googleSearch: {} } as any],
+        },
+        {
+          model: 'gemini-2.0-flash',
+        },
+        {
+          model: 'gemini-1.5-flash',
+        },
+        {
+          model: 'gemini-1.5-pro',
+        },
       ];
-      for (const modelName of candidateModels) {
+
+      for (const config of candidateConfigs) {
         try {
-          const model = this.genAI.getGenerativeModel({
-            model: modelName,
+          const modelOptions: any = {
+            model: config.model,
             generationConfig: {
-              temperature: 0.3,
+              temperature: 0.25,
               topP: 0.9,
             },
-          });
+          };
+          if (config.tools) {
+            modelOptions.tools = config.tools;
+          }
+
+          const model = this.genAI.getGenerativeModel(modelOptions);
           const contentParts: any[] = [prompt];
           if (imagePart) contentParts.push(imagePart);
 
@@ -780,7 +831,7 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
 
             // Guardrail against hallucinated prices deviating too far from Vietnamese market value
             if (estimatedMarketValue > 0) {
-              if (buyNowPrice > estimatedMarketValue * 2.5 || buyNowPrice <= 0) {
+              if (buyNowPrice > estimatedMarketValue * 3.5 || buyNowPrice <= 0) {
                 buyNowPrice = estimatedMarketValue;
               }
               if (startPrice > buyNowPrice * 0.8 || startPrice <= 0) {
@@ -811,7 +862,7 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
             }
           }
         } catch (err) {
-          console.warn(`Model ${modelName} failed in generateListingContent`, err);
+          console.warn(`Model ${config.model} with search failed in generateListingContent`, err?.message || err);
         }
       }
     } catch (e) {
