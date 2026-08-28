@@ -545,6 +545,7 @@ LƯU Ý BẮT BUỘC:
 YÊU CẦU ĐẦU RA:
 Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\`\`json bọc ngoài):
 {
+  "detectedProductName": "<Tên sản phẩm chuẩn xác nhận diện được, kèm thương hiệu/model>",
   "description": "<bài mô tả hoàn chỉnh có ghi rõ ngoại hình ...%, dùng dấu gạch đầu dòng ->",
   "estimatedNewPriceRange": "<ví dụ: 450.000 VNĐ – 550.000 VNĐ (khoảng giá mua mới trên thị trường)>",
   "suggestedStartingPrice": <số nguyên VNĐ>,
@@ -594,6 +595,7 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
 
             if (startPrice > 0 && buyNowPrice > startPrice) {
               return {
+                detectedProductName: parsed.detectedProductName || title,
                 description: cleanDescription,
                 estimatedNewPriceRange: parsed.estimatedNewPriceRange || `${Math.round(buyNowPrice * 1.3).toLocaleString('vi-VN')} VNĐ`,
                 suggestedStartingPrice: startPrice,
