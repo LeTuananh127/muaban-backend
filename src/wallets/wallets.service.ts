@@ -430,10 +430,156 @@ export class WalletsService {
 
   async getMyTransactions(userId: string) {
     const wallet = await this.getOrCreateWallet(userId);
-    return this.prisma.walletTransaction.findMany({
+    const txs = await this.prisma.walletTransaction.findMany({
       where: { walletId: wallet.id },
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: 200,
+    });
+
+    const orderIds = new Set<string>();
+    const auctionIds = new Set<string>();
+    const withdrawIds = new Set<string>();
+
+    for (const tx of txs) {
+      if (!tx.reference) continue;
+      const ref = tx.reference;
+
+      const orderMatch = ref.match(/order:([0-9a-fA-F-]{8,})/i) || ref.match(/order_payment:([0-9a-fA-F-]{8,})/i);
+      if (orderMatch) {
+        orderIds.add(orderMatch[1]);
+      }
+
+      const auctionMatch = ref.match(/auction:([0-9a-fA-F-]{8,})/i);
+      if (auctionMatch) {
+        auctionIds.add(auctionMatch[1]);
+      }
+
+      const withdrawMatch = ref.match(/withdraw(?:_approved)?:([0-9a-fA-F-]{8,})/i);
+      if (withdrawMatch) {
+        withdrawIds.add(withdrawMatch[1]);
+      }
+    }
+
+    const [orders, auctions, withdraws] = await Promise.all([
+      orderIds.size > 0
+        ? this.prisma.order.findMany({
+            where: { id: { in: Array.from(orderIds) } },
+            include: {
+              auction: {
+                include: {
+                  product: { select: { id: true, title: true, images: true } },
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
+      auctionIds.size > 0
+        ? this.prisma.auction.findMany({
+            where: { id: { in: Array.from(auctionIds) } },
+            include: {
+              product: { select: { id: true, title: true, images: true } },
+            },
+          })
+        : Promise.resolve([]),
+      withdrawIds.size > 0
+        ? this.prisma.withdrawRequest.findMany({
+            where: { id: { in: Array.from(withdrawIds) } },
+            select: { id: true, bankName: true, accountNo: true, accountName: true, status: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const orderMap = new Map<string, any>();
+    for (const o of orders as any[]) {
+      orderMap.set(o.id, o);
+    }
+    const auctionMap = new Map<string, any>();
+    for (const a of auctions as any[]) {
+      auctionMap.set(a.id, a);
+    }
+    const withdrawMap = new Map<string, any>();
+    for (const w of withdraws as any[]) {
+      withdrawMap.set(w.id, w);
+    }
+
+    return txs.map((tx) => {
+      const ref = tx.reference || '';
+      let productTitle: string | null = null;
+      let productImage: string | null = null;
+      let orderId: string | null = null;
+      let auctionId: string | null = null;
+      let displayDescription = '';
+
+      const orderMatch = ref.match(/order:([0-9a-fA-F-]{8,})/i) || ref.match(/order_payment:([0-9a-fA-F-]{8,})/i);
+      if (orderMatch) {
+        orderId = orderMatch[1];
+        const order: any = orderMap.get(orderId);
+        if (order?.auction?.product) {
+          productTitle = order.auction.product.title;
+          productImage = order.auction.product.images?.[0] || null;
+          auctionId = order.auctionId;
+        }
+      }
+
+      const auctionMatch = ref.match(/auction:([0-9a-fA-F-]{8,})/i);
+      if (auctionMatch) {
+        auctionId = auctionMatch[1];
+        const auction: any = auctionMap.get(auctionId);
+        if (auction?.product) {
+          productTitle = auction.product.title;
+          productImage = auction.product.images?.[0] || null;
+        }
+      }
+
+      const withdrawMatch = ref.match(/withdraw(?:_approved)?:([0-9a-fA-F-]{8,})/i);
+      let withdrawInfo: any = null;
+      if (withdrawMatch) {
+        withdrawInfo = withdrawMap.get(withdrawMatch[1]);
+      }
+
+      const txType = tx.type?.toUpperCase();
+      if (txType === 'CREDIT') {
+        if (productTitle) {
+          displayDescription = `Doanh thu bán: ${productTitle}`;
+        } else {
+          displayDescription = 'Doanh thu bán hàng (Giải ngân Escrow)';
+        }
+      } else if (txType === 'FEE') {
+        if (productTitle) {
+          displayDescription = `Phí sàn giao dịch: ${productTitle}`;
+        } else {
+          displayDescription = 'Khấu trừ phí sàn giao dịch';
+        }
+      } else if (txType === 'DEBIT') {
+        if (withdrawInfo) {
+          displayDescription = `Rút tiền về ${withdrawInfo.bankName} (${withdrawInfo.accountNo})`;
+        } else if (ref.includes('withdraw')) {
+          displayDescription = 'Rút tiền về tài khoản ngân hàng';
+        } else if (productTitle) {
+          displayDescription = `Thanh toán mua hàng: ${productTitle}`;
+        } else {
+          displayDescription = 'Thanh toán đơn hàng';
+        }
+      } else if (txType === 'REFUND') {
+        if (productTitle) {
+          displayDescription = `Hoàn tiền / Giải phóng cọc: ${productTitle}`;
+        } else {
+          displayDescription = 'Hoàn tiền / Giải phóng cọc';
+        }
+      } else if (txType === 'TOPUP') {
+        displayDescription = ref?.includes('vnp') ? 'Nạp tiền qua VNPAY' : 'Nạp tiền vào ví';
+      } else {
+        displayDescription = txType;
+      }
+
+      return {
+        ...tx,
+        productTitle,
+        productImage,
+        orderId,
+        auctionId,
+        displayDescription,
+      };
     });
   }
 }
