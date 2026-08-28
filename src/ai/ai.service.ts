@@ -541,49 +541,56 @@ Chúc các bạn đấu giá may mắn và chốt được sản phẩm ưng ý!
 
     try {
       const prompt = `
-Bạn là Trợ lý AI Chuyên gia Marketing & Định giá Sản phẩm Đồ cũ trên sàn Bazzar.
-Người bán cung cấp thông tin sản phẩm:
+Bạn là Chuyên gia AI Cao cấp về Thẩm định Giá & Sáng tạo Nội dung Bán hàng (Copywriting) trên sàn đấu giá đồ cũ Bazzar.
+
+THÔNG TIN SẢN PHẨM TỪ NGƯỜI BÁN:
 - Tên sản phẩm: ${title}
-- Danh mục: ${category || 'Đồ cũ cá nhân'}
-- Tình trạng/Độ mới: ${condition || 'Đã qua sử dụng'}
-${imagePart ? '- Hình ảnh thị giác (Multimodal Vision): Đã bao gồm ảnh sản phẩm đính kèm để bạn soi trực tiếp ngoại hình' : '- Hình ảnh: Không có ảnh đính kèm'}
-${historicalContext ? `- ${historicalContext}` : ''}
+- Phân loại / Danh mục: ${category || 'Đồ cũ cá nhân'}
+- Tình trạng / Độ mới: ${condition || 'Đã qua sử dụng'}
+${imagePart ? '- Thị giác máy tính (Multimodal Vision): Đã đính kèm ảnh sản phẩm thực tế để bạn soi chi tiết màu sắc, ngoại hình, tem nhãn, phụ kiện.' : '- Không có ảnh đính kèm.'}
+${historicalContext ? `- Dữ liệu giá quá khứ trên sàn: ${historicalContext}` : ''}
 
-HƯỚNG DẪN VIẾT BÀI MÔ TẢ NỔI BẬT VÀ HẤP DẪN (RẤT QUAN TRỌNG):
-Viết một bài mô tả chi tiết, chuyên nghiệp và cực kỳ thuyết phục (khoảng 150 - 250 từ).
-${imagePart ? 'Hãy đối soát hình ảnh sản phẩm đính kèm để mô tả đúng màu sắc, ngoại hình và chi tiết nổi bật thị giác.' : ''}
-TUYỆT ĐỐI KHÔNG ĐÁNH SỐ THỨ TỰ (NHƯ 1., 2., 3., 4. HAY 1), 2), 3)) TRONG TOÀN BỘ BÀI VIẾT!
-Hãy dùng toàn bộ các dấu gạch đầu dòng (-) sạch sẽ kèm biểu tượng emoji:
+NHIỆM VỤ 1: ĐỊNH GIÁ THỊ TRƯỜNG THỰC TẾ TẠI VIỆT NAM (MARKET VALUATION)
+Dựa vào kho tri thức khổng lồ và dữ liệu giao dịch đồ cũ thực tế tại thị trường Việt Nam (Chợ Tốt, Shopee, sàn TMĐT, diễn đàn công nghệ, hội nhóm sưu tầm):
+- Tự động nhận diện chính xác thương hiệu, phân khúc, đời máy/năm sản xuất, phiên bản dung lượng/cấu hình hoặc độ hiếm của sản phẩm bất kể thuộc ngành hàng nào (Công nghệ, Điện thoại, Laptop, Máy ảnh, Xe cộ, Đồng hồ, Thời trang hàng hiệu, Nhạc cụ, Đồ gia dụng, Đồ sưu tầm...).
+- "suggestedBuyNowPrice" (Giá mua ngay): Ước tính sát giá thị trường đồ cũ chuẩn xác tại Việt Nam tương ứng với độ mới/tình trạng sản phẩm.
+- "suggestedStartingPrice" (Giá khởi điểm): Đặt mức giá hấp dẫn bằng khoảng 40% - 50% giá thị trường thực tế để kích thích nhiều người cùng tham gia đặt giá sôi nổi.
+- "suggestedBidIncrement" (Bước giá): Đề xuất bước giá hợp lý (ví dụ: 50.000đ, 100.000đ, 200.000đ hoặc 500.000đ đối với sản phẩm giá trị cao).
+- "suggestedLayout": Chọn "full_banner" (đối với hàng công nghệ/xa xỉ cao cấp >10 triệu), "grid_gallery" (đối với thời trang, phụ kiện, bộ sưu tập), hoặc "standard" (đối với đồ thông dụng).
 
-- 📌 **TỔNG QUAN SẢN PHẨM**: Giới thiệu lôi cuốn về tên sản phẩm, nguồn gốc chính hãng và độ mới.
-- ✨ **TÌNH TRẠNG & TÍNH NĂNG NỔI BẬT**: Liệt kê chi tiết ngoại hình, độ mượt mà, linh kiện nguyên bản và phụ kiện đi kèm.
-- 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**: Khẳng định chính sách bao test và bảo vệ giao dịch 100% qua Ví ký quỹ Escrow Bazzar.
-- ⚡ **LỜI KÊU GỌI ĐẶT GIÁ**: Kêu gọi người mua hào hứng tham gia đặt giá ngay.
+NHIỆM VỤ 2: SÁNG TẠO BÀI MÔ TẢ ĐỘC ĐÁO, HẤP DẪN & TỰ NHIÊN (DYNAMIC COPYWRITING)
+Hãy viết một bài mô tả bán hàng cực kỳ lôi cuốn, văn phong tự nhiên, chân thật và thuyết phục (khoảng 150 - 250 từ).
+LƯU Ý ĐẶC BIỆT VỀ PHONG CÁCH:
+- KHÔNG dùng một khuôn mẫu cứng nhắc lặp đi lặp lại. Hãy linh hoạt biến tấu tiêu đề con, câu từ và biểu cảm emoji cho phù hợp với từng loại sản phẩm (Đồ công nghệ thì nhấn mạnh hiệu năng/pin/màn hình; Thời trang/đồng hồ thì nhấn mạnh phong cách/độ mới/chính hãng; Đồ gia dụng/xe thì nhấn mạnh độ bền/sự tiện lợi).
+- Tuyệt đối KHÔNG đánh số thứ tự (1., 2., 3., 1), 2)). Hãy dùng các dấu gạch đầu dòng (-) sạch sẽ và emoji sinh động.
+- Luôn lồng ghép tinh tế và tự nhiên cam kết kiểm tra hàng và bảo hộ giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazzar để người mua an tâm chốt giá.
+- Kết thúc bằng một lời kêu gọi đặt giá/đấu giá hào hứng và duyên dáng.
 
-HƯỚNG DẪN ĐỊNH GIÁ AI THÔNG MINH TẠI VIỆT NAM:
-- "suggestedStartingPrice": Giá khởi điểm bằng khoảng 40% - 50% giá thị trường đồ cũ (đặt thấp hơn để kích thích lượt đặt giá sôi nổi).
-- "suggestedBidIncrement": Bước giá từ 50,000đ đến 200,000đ tùy giá trị sản phẩm.
-- "suggestedBuyNowPrice": Giá mua ngay bằng khoảng 95% - 100% giá trị thị trường thực tế đồ cũ tại Việt Nam.
-- "suggestedLayout": Chọn "full_banner" đối với đồ công nghệ/hàng hiệu cao cấp (>10 triệu), "grid_gallery" đối với bộ sưu tập/thời trang, hoặc "standard".
-
-Hãy trả về định dạng JSON hợp lệ duy nhất (không bọc trong thẻ markdown khác) với cấu trúc:
+YÊU CẦU ĐẦU RA:
+Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\`\`json bọc ngoài):
 {
-  "description": "<nội dung bài viết dùng toàn bộ dấu gạch đầu dòng -, tuyệt đối KHÔNG có số thứ tự 1. 2. 3.>",
-  "suggestedStartingPrice": <số nguyên giá khởi điểm tính bằng VNĐ>,
-  "suggestedBidIncrement": <số nguyên bước giá tính bằng VNĐ>,
-  "suggestedBuyNowPrice": <số nguyên giá mua ngay tính bằng VNĐ>,
+  "description": "<bài mô tả hoàn chỉnh, sinh động, giàu cảm xúc, sử dụng dấu gạch đầu dòng ->",
+  "suggestedStartingPrice": <số nguyên VNĐ>,
+  "suggestedBidIncrement": <số nguyên VNĐ>,
+  "suggestedBuyNowPrice": <số nguyên VNĐ>,
   "suggestedLayout": "standard" | "full_banner" | "grid_gallery"
 }
 `;
 
       const candidateModels = [
-        'gemini-3.6-flash',
-        'gemini-2.5-pro',
-        'gemini-2.0-flash-exp',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
       ];
       for (const modelName of candidateModels) {
         try {
-          const model = this.genAI.getGenerativeModel({ model: modelName });
+          const model = this.genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+              temperature: 0.85,
+              topP: 0.95,
+            },
+          });
           const contentParts: any[] = [prompt];
           if (imagePart) contentParts.push(imagePart);
 
