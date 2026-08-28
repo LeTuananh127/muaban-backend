@@ -490,8 +490,58 @@ Quy tắc ứng xử và nghiệp vụ:
       estimatedMarketValue = 35000000;
     } else if (titleLower.includes('sony a7') || titleLower.includes('canon r6')) {
       estimatedMarketValue = 30000000;
-    } else if (titleLower.includes('laptop') || titleLower.includes('gaming') || titleLower.includes('asus rog') || titleLower.includes('thinkpad')) {
-      estimatedMarketValue = 16000000;
+    } else if (
+      titleLower.includes('chuột') ||
+      titleLower.includes('mouse') ||
+      titleLower.includes('vxe') ||
+      titleLower.includes('vgn') ||
+      titleLower.includes('g102') ||
+      titleLower.includes('pulsar') ||
+      titleLower.includes('lamzu') ||
+      titleLower.includes('fuhlen')
+    ) {
+      if (titleLower.includes('superlight') || titleLower.includes('g pro') || titleLower.includes('viper v3') || titleLower.includes('deathadder v3')) {
+        // Chuột cao cấp (Mua mới ~2.8tr - 3.5tr -> Đồ cũ like new ~1.8tr - 2.2tr)
+        estimatedMarketValue = 1900000;
+      } else if (titleLower.includes('vxe r1') || titleLower.includes('r1 se') || titleLower.includes('vgn f1') || titleLower.includes('g102') || titleLower.includes('fuhlen') || titleLower.includes('dareu')) {
+        // Chuột gaming quốc dân giá rẻ (VXE R1 SE+, VGN Dragonfly, G102... Mua mới ~450k - 550k -> Đồ cũ like new ~320.000 VNĐ)
+        estimatedMarketValue = 320000;
+      } else {
+        estimatedMarketValue = 380000;
+      }
+    } else if (
+      titleLower.includes('bàn phím') ||
+      titleLower.includes('keyboard') ||
+      titleLower.includes('keychron') ||
+      titleLower.includes('akko') ||
+      titleLower.includes('monsgeek') ||
+      titleLower.includes('rk61') ||
+      titleLower.includes('fl-esports') ||
+      titleLower.includes('aula')
+    ) {
+      if (titleLower.includes('keychron q') || titleLower.includes('filco') || titleLower.includes('realforce') || titleLower.includes('custom')) {
+        estimatedMarketValue = 2500000;
+      } else if (titleLower.includes('akko') || titleLower.includes('monsgeek') || titleLower.includes('keychron') || titleLower.includes('fl-esports') || titleLower.includes('aula f75')) {
+        estimatedMarketValue = 850000; // Phím cơ tầm trung mua mới ~1.2tr - 1.6tr -> đồ cũ ~850k
+      } else {
+        estimatedMarketValue = 450000;
+      }
+    } else if (
+      titleLower.includes('pad chuột') ||
+      titleLower.includes('lót chuột') ||
+      titleLower.includes('mousepad')
+    ) {
+      estimatedMarketValue = 120000;
+    } else if (
+      titleLower.includes('laptop') ||
+      titleLower.includes('thinkpad') ||
+      titleLower.includes('asus rog') ||
+      titleLower.includes('alienware') ||
+      titleLower.includes('legion') ||
+      (titleLower.includes('pc gaming') || titleLower.includes('case gaming') || titleLower.includes('dàn máy')) ||
+      (titleLower.includes('máy tính') && !titleLower.includes('chuột') && !titleLower.includes('bàn phím') && !titleLower.includes('bỏ túi'))
+    ) {
+      estimatedMarketValue = 14000000;
     } else if (
       titleLower.includes('cốc giữ nhiệt') ||
       titleLower.includes('bình giữ nhiệt') ||
@@ -528,7 +578,6 @@ Quy tắc ứng xử và nghiệp vụ:
       titleLower.includes('cường lực') ||
       titleLower.includes('cáp sạc') ||
       titleLower.includes('dây sạc') ||
-      titleLower.includes('lót chuột') ||
       titleLower.includes('giá đỡ')
     ) {
       estimatedMarketValue = 85000;
