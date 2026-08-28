@@ -25,35 +25,169 @@ export class AiService {
     try {
       // 1. Fetch categories
       const categories = await this.prisma.category.findMany({
-        select: { name: true },
-        take: 20,
+        select: { id: true, name: true, slug: true },
+        take: 30,
       });
 
-      // 2. Dynamic Search for auctions matching user's query keywords
-      const searchKeywords = message.trim().toLowerCase();
-      let matchingAuctions = await this.prisma.auction.findMany({
-        where: {
-          status: 'ACTIVE',
-          endTime: { gt: new Date() },
-          OR: [
-            { product: { title: { contains: searchKeywords, mode: 'insensitive' } } },
-            { product: { description: { contains: searchKeywords, mode: 'insensitive' } } },
-            { product: { category: { name: { contains: searchKeywords, mode: 'insensitive' } } } },
+      // 2. Intelligent Category and Keyword Extraction
+      const rawMessage = message.trim();
+      const lowerMsg = rawMessage.toLowerCase();
+
+      // Category keywords mapping dictionary
+      const categoryKeywordsMap: Record<string, { slug: string; name: string; icon: string; keywords: string[] }> = {
+        'dien-thoai-phu-kien': {
+          slug: 'dien-thoai-phu-kien',
+          name: 'Điện thoại & Phụ kiện',
+          icon: '📱',
+          keywords: [
+            'điện thoại', 'dien thoai', 'đt', 'dt', 'smartphone', 'phone', 'iphone', 'samsung',
+            'xiaomi', 'pixel', 'ipad', 'airpod', 'sạc dự phòng', 'ốp lưng', 'gimbal', 'apple watch', 'tai nghe apple',
           ],
         },
-        include: {
-          product: {
-            include: {
-              category: true,
-              owner: { select: { name: true } },
+        'may-tinh-laptop': {
+          slug: 'may-tinh-laptop',
+          name: 'Máy tính & Laptop',
+          icon: '💻',
+          keywords: [
+            'máy tính', 'may tinh', 'laptop', 'macbook', 'dell', 'asus', 'rog', 'pc',
+            'bàn phím', 'chuột', 'màn hình', 'ssd', 'card màn hình', 'rtx', 'ghế công thái học', 'keychron', 'logitech',
+          ],
+        },
+        'may-anh-may-quay': {
+          slug: 'may-anh-may-quay',
+          name: 'Máy ảnh & Máy quay',
+          icon: '📷',
+          keywords: [
+            'máy ảnh', 'may anh', 'máy quay', 'may quay', 'camera', 'sony alpha', 'a7',
+            'fujifilm', 'canon', 'eos', 'lens', 'ống kính', 'gopro', 'flycam', 'dji', 'godox', 'chân máy', 'tripod',
+          ],
+        },
+        'am-thanh-loa': {
+          slug: 'am-thanh-loa',
+          name: 'Âm thanh & Loa',
+          icon: '🎵',
+          keywords: [
+            'âm thanh', 'am thanh', 'loa', 'speaker', 'tai nghe', 'headphone', 'marshall',
+            'sony wh', 'jbl', 'mâm đĩa than', 'sennheiser', 'homepod', 'dac', 'soundbar', 'devialet',
+          ],
+        },
+        'dong-ho-trang-suc': {
+          slug: 'dong-ho-trang-suc',
+          name: 'Đồng hồ & Trang sức',
+          icon: '⌚',
+          keywords: [
+            'đồng hồ', 'dong ho', 'watch', 'tissot', 'seiko', 'garmin', 'casio',
+            'g-shock', 'citizen', 'trang sức', 'dây chuyền', 'lắc tay', 'nhẫn', 'bạc', 'vàng', 'hộp xoay',
+          ],
+        },
+        'sach-truyen-tranh': {
+          slug: 'sach-truyen-tranh',
+          name: 'Sách & Truyện tranh',
+          icon: '📚',
+          keywords: [
+            'sách', 'sach', 'truyện', 'truyen', 'manga', 'comic', 'dragon ball',
+            'harry potter', 'sherlock', 'one piece', 'kindle', 'doraemon', 'đại việt sử ký', 'tâm lý học',
+          ],
+        },
+        'thoi-trang-giay-dep': {
+          slug: 'thoi-trang-giay-dep',
+          name: 'Thời trang & Giày dép',
+          icon: '👟',
+          keywords: [
+            'thời trang', 'thoi trang', 'giày', 'giay', 'sneaker', 'nike', 'jordan',
+            'allsaints', 'gucci', 'oxford', 'ray-ban', 'kính mát', 'ví', 'hoodie', 'thắt lưng', 'new balance', 'balo',
+          ],
+        },
+        'khac': {
+          slug: 'khac',
+          name: 'Khác',
+          icon: '✨',
+          keywords: [
+            'lego', 'cờ tướng', 'guitar', 'đàn', 'mô hình', 'zippo', 'bật lửa',
+            'kính thiên văn', 'máy pha cà phê', 'flair', 'resin', 'xe đạp', 'bút máy', 'parker',
+          ],
+        },
+      };
+
+      // Detect matched category from query keywords
+      let matchedCategorySlug: string | null = null;
+      let matchedCategoryInfo: { slug: string; name: string; icon: string } | null = null;
+
+      for (const [slug, info] of Object.entries(categoryKeywordsMap)) {
+        if (info.keywords.some((kw) => lowerMsg.includes(kw))) {
+          matchedCategorySlug = slug;
+          matchedCategoryInfo = info;
+          break;
+        }
+      }
+
+      // Extract specific search terms (cleaning stop words)
+      const stopWords = [
+        'tìm', 'cho', 'tôi', 'mình', 'em', 'anh', '1', 'một', 'vài', 'vái', 'cái', 'chiếc', 'đi', 'cơ', 'mà',
+        'xem', 'có', 'nào', 'không', 'ko', 'k', 'với', 'hộ', 'giúp', 'muốn', 'mua', 'cần', 'ạ', 'nhé', 'ơi',
+        'ad', 'bạn', 'sản phẩm', 'đồ', 'hàng', 'đang', 'bán', 'đấu', 'giá', 'hot', 'nổi bật', 'gợi ý',
+      ];
+      const searchTokens = lowerMsg
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?'"]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 1 && !stopWords.includes(w));
+
+      // 3. Build Prisma query
+      let matchingAuctions: any[] = [];
+
+      if (matchedCategorySlug) {
+        // Query by matched category
+        matchingAuctions = await this.prisma.auction.findMany({
+          where: {
+            status: 'ACTIVE',
+            endTime: { gt: new Date() },
+            product: {
+              category: { slug: matchedCategorySlug },
             },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 6,
-      });
+          include: {
+            product: {
+              include: {
+                category: true,
+                owner: { select: { name: true } },
+              },
+            },
+            bids: { select: { id: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 6,
+        });
+      }
 
-      // If no keyword match, fallback to top active auctions
+      if (matchingAuctions.length === 0 && searchTokens.length > 0) {
+        // Query by specific search tokens in title, description, or category name
+        matchingAuctions = await this.prisma.auction.findMany({
+          where: {
+            status: 'ACTIVE',
+            endTime: { gt: new Date() },
+            OR: searchTokens.map((token) => ({
+              OR: [
+                { product: { title: { contains: token, mode: 'insensitive' } } },
+                { product: { description: { contains: token, mode: 'insensitive' } } },
+                { product: { category: { name: { contains: token, mode: 'insensitive' } } } },
+              ],
+            })),
+          },
+          include: {
+            product: {
+              include: {
+                category: true,
+                owner: { select: { name: true } },
+              },
+            },
+            bids: { select: { id: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 6,
+        });
+      }
+
+      // If still no keyword match, provide a balanced top active auctions list across categories
       if (matchingAuctions.length === 0) {
         matchingAuctions = await this.prisma.auction.findMany({
           where: {
@@ -67,6 +201,7 @@ export class AiService {
                 owner: { select: { name: true } },
               },
             },
+            bids: { select: { id: true } },
           },
           orderBy: { createdAt: 'desc' },
           take: 6,
@@ -76,13 +211,15 @@ export class AiService {
       const categoriesStr = categories.map((c) => c.name).join(', ');
       const auctionsStr = matchingAuctions
         .map((a) => {
-          return `- [${a.product.title}](/auction/${a.id}) (Danh mục: ${a.product.category.name}): Giá hiện tại ${a.startingPrice.toLocaleString('vi-VN')}đ, Kết thúc: ${a.endTime.toLocaleString('vi-VN')}`;
+          const currentPrice = Number(a.currentPrice || a.startingPrice);
+          const bidCount = a.bids ? a.bids.length : 0;
+          return `- [${a.product.title}](/auction/${a.id}) (Danh mục: ${a.product.category?.name || 'Khác'}): Giá hiện tại ${currentPrice.toLocaleString('vi-VN')}đ, ${bidCount} lượt đấu giá, Kết thúc: ${new Date(a.endTime).toLocaleString('vi-VN')}`;
         })
         .join('\n');
 
       const feePercent = getPlatformFeePercent();
       const systemInstruction = `
-Bạn là "Muabandocuui AI Assistant", trợ lý ảo thông minh và thân thiện của ứng dụng bán và mua đồ cũ bằng đấu giá Muabandocuui.
+Bạn là "Muabandocuui AI Assistant" (Trợ lý AI của sàn đấu giá đồ cũ Bazaar).
 Nhiệm vụ của bạn là giải đáp thắc mắc của người dùng về cách bán và mua đồ cũ bằng đấu giá, hỗ trợ tìm kiếm sản phẩm đồ cũ và giải thích quy trình ký quỹ Escrow một cách ngắn gọn, súc tích bằng Tiếng Việt.
 
 Dưới đây là thông tin thời gian thực về sản phẩm và hệ thống để bạn tham khảo khi trả lời:
@@ -92,7 +229,7 @@ ${auctionsStr || 'Hiện tại chưa có phiên đấu giá nào đang diễn ra
 
 Quy tắc ứng xử và nghiệp vụ:
 1. Luôn phản hồi lịch sự, thân thiện, dùng emoji phù hợp.
-2. Nếu người dùng hỏi mua hoặc tìm kiếm sản phẩm, hãy đối chiếu với danh sách đấu giá ở trên. Nếu có sản phẩm phù hợp, hãy giới thiệu và cung cấp liên kết tới sản phẩm theo định dạng markdown của React Router, ví dụ: [Tên sản phẩm](/auction/ID-của-sản-phẩm). Đừng tạo link ra trang web khác.
+2. Nếu người dùng hỏi mua hoặc tìm kiếm sản phẩm (ví dụ điện thoại, laptop, máy ảnh, loa, đồng hồ, sách, thời trang...), hãy đối chiếu với danh sách đấu giá ở trên. Hãy giới thiệu các sản phẩm phù hợp và cung cấp liên kết theo định dạng markdown của React Router, ví dụ: [Tên sản phẩm](/auction/ID-của-sản-phẩm). Đừng tạo link ra trang web khác ngoài hệ thống.
 3. Hướng dẫn quy trình Đăng bán đồ cũ bằng đấu giá:
    - **Bước 1**: [Đăng ký tài khoản](/register) hoặc [Đăng nhập](/login).
    - **Bước 2 - Xác minh người bán (KYC)**: Truy cập trang [Trang cá nhân](/profile) để gửi ảnh chụp CCCD 2 mặt và thông tin người bán.
@@ -107,115 +244,111 @@ Quy tắc ứng xử và nghiệp vụ:
 5. Trả lời ngắn gọn, tập trung vào câu hỏi, tránh dài dòng lan man.
 `;
 
-    // Array of candidate models for Google Generative AI
-    const candidateModels = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
-    ];
+      // Candidate models for Google Generative AI
+      const candidateModels = [
+        'gemini-3.6-flash',
+        'gemini-2.5-pro',
+        'gemini-2.0-flash-exp',
+      ];
 
-    for (const modelName of candidateModels) {
-      try {
-        const model = this.genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction,
-        });
+      for (const modelName of candidateModels) {
+        try {
+          const model = this.genAI.getGenerativeModel({
+            model: modelName,
+            systemInstruction,
+          });
 
-        const chat = model.startChat({
-          history: history.map((h) => ({
-            role: h.role,
-            parts: [{ text: h.text }],
-          })),
-        });
+          const chat = model.startChat({
+            history: history.map((h) => ({
+              role: h.role,
+              parts: [{ text: h.text }],
+            })),
+          });
 
-        const result = await chat.sendMessage(message);
-        return result.response.text();
-      } catch (modelErr) {
-        console.warn(`Model ${modelName} failed, trying fallback...`, modelErr?.message || modelErr);
-        continue;
+          const result = await chat.sendMessage(message);
+          return result.response.text();
+        } catch (modelErr) {
+          console.warn(`Model ${modelName} failed, trying fallback...`, modelErr?.message || modelErr);
+          continue;
+        }
       }
-    }
 
-    // Smart Fallback Assistant Response if Gemini API Key quota is exceeded or unreachable
-    const lowerMsg = message.toLowerCase();
-
-    if (['chủ', 'tên gì', 'ai tạo', 'tác giả', 'sinh viên', 'người tạo', 'tuấn anh', 'lê tuấn anh', 'phenikaa'].some((w) => lowerMsg.includes(w))) {
-      return (
-        '🎓 **Thông tin Tác giả & Đồ án Tốt nghiệp**:\n\n' +
-        '• **Hệ thống**: **Bazaar** — Sàn Mua Bán & Đấu Giá Đồ Cũ Trực Tuyến.\n' +
-        '• **Sinh viên thực hiện**: **Lê Tuấn Anh** (MSSV: 21012046) — Lớp K15-CNTT3.\n' +
-        '• **Giảng viên hướng dẫn**: **TS. Nguyễn Lệ Thu**.\n' +
-        '• **Trường**: Đại học Phenikaa — Khoa Công nghệ Thông tin.\n\n' +
-        'Ứng dụng được xây dựng với mục tiêu mang đến nền tảng Re-commerce đấu giá đồ cũ minh bạch, an toàn qua Ví ký quỹ Escrow và Trợ lý AI!'
-      );
-    } else if (['hello', 'hi', 'chào', 'xin chào', 'chao', 'hey'].some((w) => lowerMsg.includes(w))) {
-      return (
-        '👋 **Chào bạn! Trợ lý AI Bazaar rất vui được hỗ trợ bạn.**\n\n' +
-        'Tôi có thể giúp bạn hướng dẫn đăng bán đồ cũ, quy trình đặt giá đấu giá, cơ chế ký quỹ ví Escrow, hoặc tìm kiếm các sản phẩm hot đang đấu giá trên sàn. Bạn cần hỗ trợ thông tin gì ạ?'
-      );
-    } else if (lowerMsg.includes('đăng') || lowerMsg.includes('bán') || lowerMsg.includes('tạo')) {
-      return (
-        '🤖 **Hướng dẫn Đăng bán Đấu giá Đồ cũ trên Bazaar**:\n\n' +
-        '1️⃣ **Bước 1**: Đăng nhập tài khoản Seller.\n' +
-        '2️⃣ **Bước 2**: Xác minh danh tính người bán (CCCD) tại trang Cá nhân / KYC.\n' +
-        '3️⃣ **Bước 3**: Truy cập trang [Đăng sản phẩm mới](/create-listing).\n' +
-        '4️⃣ **Bước 4**: Tải ảnh đồ cũ, nhập giá khởi điểm, bước giá và thiết lập thời gian kết thúc đấu giá.'
-      );
-    } else if (lowerMsg.includes('phí') || lowerMsg.includes('tiền')) {
-      return (
-        '🤖 **Chính sách Phí dịch vụ Sàn Bazaar**:\n\n' +
-        '• **Người mua**: Miễn phí 100% giao dịch khi tham gia đấu giá.\n' +
-        `• **Người bán**: Phí sàn tiêu chuẩn là **${feePercent}%** trên tổng giá trị giao dịch thành công (chỉ trích trừ khi đơn hàng hoàn tất).`
-      );
-    } else if (lowerMsg.includes('escrow') || lowerMsg.includes('cọc') || lowerMsg.includes('ví')) {
-      return (
-        '🤖 **Cơ chế Ký quỹ Ví Escrow Hold**:\n\n' +
-        'Khi đặt giá, hệ thống sẽ tạm giữ tiền cọc trong Ví Escrow. ' +
-        'Nếu có người khác đặt giá cao hơn, 100% tiền cọc sẽ được tự động hoàn trả về Ví khả dụng của bạn ngay lập tức!'
-      );
-    } else if (['la sao', 'là sao', 'tại sao', 'nhanh hết', 'hết hạn', 'hết ngạch', 'key', 'lý do', 'sao vậy'].some((w) => lowerMsg.includes(w))) {
-      return (
-        '🔑 **Giải thích về GEMINI_API_KEY & Hạn ngạch Google Free Tier**:\n\n' +
-        '• **Lý do API Key báo lỗi / nhanh kịch hạn ngạch**: Mã `GEMINI_API_KEY` trong tệp `.env` backend phải là mã lấy từ Google AI Studio (có định dạng bắt đầu bằng chữ `AIzaSy...`). Mã key hiện tại bị lỗi định danh nên Google API tự động hủy kết nối và chuyển sang phản hồi dự phòng này.\n' +
-        '• **Gói miễn phí Google (Free Tier)** cấp tối đa 15 lượt gọi/phút và 1.500 lượt gọi/ngày.\n\n' +
-        '👉 **Cách khắc phục miễn phí 100% (Mất 30 giây)**:\n' +
-        '1️⃣ Đăng nhập [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) và bấm **Create API key**.\n' +
-        '2️⃣ Sao chép mã key mới (bắt đầu bằng `AIzaSy...`).\n' +
-        '3️⃣ Mở tệp `auction-system/.env` và dán vào: `GEMINI_API_KEY=AIzaSy...`\n' +
-        '4️⃣ Khởi động lại Server Backend NestJS!'
-      );
-    } else if (['gợi ý', 'sản phẩm', 'đang bán', 'đang đấu', 'có gì', 'gợi ý sản phẩm', 'tìm', 'đồ'].some((w) => lowerMsg.includes(w))) {
-      if (matchingAuctions.length > 0) {
-        const listStr = matchingAuctions
-          .map((a) => `• 🏷️ [${a.product.title}](/auction/${a.id}) (Danh mục: ${a.product.category?.name || 'Khác'}) - Giá hiện tại: **${a.startingPrice.toLocaleString('vi-VN')}đ**`)
-          .join('\n');
-        return `🔥 **Gợi ý các sản phẩm đang Đấu giá Nổi bật trên Bazaar**:\n\n${listStr}\n\n👉 Bạn bấm trực tiếp vào tên sản phẩm để xem chi tiết và tham gia đặt giá ngay nhé!`;
+      // Smart Fallback Assistant Response if Gemini API Key quota is exceeded or unreachable
+      if (['chủ', 'tên gì', 'ai tạo', 'tác giả', 'sinh viên', 'người tạo', 'tuấn anh', 'lê tuấn anh', 'phenikaa'].some((w) => lowerMsg.includes(w))) {
+        return (
+          '🎓 **Thông tin Tác giả & Đồ án Tốt nghiệp**:\n\n' +
+          '• **Hệ thống**: **Bazaar** — Sàn Mua Bán & Đấu Giá Đồ Cũ Trực Tuyến.\n' +
+          '• **Sinh viên thực hiện**: **Lê Tuấn Anh** (MSSV: 21012046) — Lớp K15-CNTT3.\n' +
+          '• **Giảng viên hướng dẫn**: **TS. Nguyễn Lệ Thu**.\n' +
+          '• **Trường**: Đại học Phenikaa — Khoa Công nghệ Thông tin.\n\n' +
+          'Ứng dụng được xây dựng với mục tiêu mang đến nền tảng Re-commerce đấu giá đồ cũ minh bạch, an toàn qua Ví ký quỹ Escrow và Trợ lý AI!'
+        );
+      } else if (['hello', 'hi', 'chào', 'xin chào', 'chao', 'hey'].some((w) => lowerMsg.includes(w))) {
+        return (
+          '👋 **Chào bạn! Trợ lý AI Bazaar rất vui được hỗ trợ bạn.**\n\n' +
+          'Tôi có thể giúp bạn hướng dẫn đăng bán đồ cũ, quy trình đặt giá đấu giá, cơ chế ký quỹ ví Escrow, hoặc tìm kiếm các sản phẩm hot đang đấu giá trên sàn. Bạn cần hỗ trợ thông tin gì ạ?'
+        );
+      } else if (
+        matchedCategoryInfo ||
+        ['gợi ý', 'sản phẩm', 'đang bán', 'đang đấu', 'có gì', 'gợi ý sản phẩm', 'tìm', 'đồ', 'cơ mà'].some((w) => lowerMsg.includes(w))
+      ) {
+        if (matchingAuctions.length > 0) {
+          const categoryTitle = matchedCategoryInfo
+            ? `${matchedCategoryInfo.icon} Danh sách sản phẩm **${matchedCategoryInfo.name}**`
+            : '🔥 Gợi ý các sản phẩm đang Đấu giá Nổi bật';
+          const listStr = matchingAuctions
+            .map((a) => {
+              const currentPrice = Number(a.currentPrice || a.startingPrice);
+              const bidCount = a.bids ? a.bids.length : 0;
+              return `• 🏷️ [${a.product.title}](/auction/${a.id}) (${a.product.category?.name || 'Đồ cũ'}) — Giá hiện tại: **${currentPrice.toLocaleString('vi-VN')}đ** (${bidCount} lượt đấu giá)`;
+            })
+            .join('\n');
+          return `${categoryTitle} trên Bazaar:\n\n${listStr}\n\n👉 Bạn bấm trực tiếp vào tên sản phẩm để xem chi tiết và tham gia đặt giá ngay nhé!`;
+        }
+        return 'Dạ hiện tại sàn đang chuẩn bị cập nhật thêm các phiên đấu giá cho danh mục này. Bạn quay lại sau ít phút nhé!';
+      } else if (lowerMsg.includes('đăng') || lowerMsg.includes('bán') || lowerMsg.includes('tạo')) {
+        return (
+          '🤖 **Hướng dẫn Đăng bán Đấu giá Đồ cũ trên Bazaar**:\n\n' +
+          '1️⃣ **Bước 1**: Đăng nhập tài khoản Seller.\n' +
+          '2️⃣ **Bước 2**: Xác minh danh tính người bán (CCCD) tại trang Cá nhân / KYC.\n' +
+          '3️⃣ **Bước 3**: Truy cập trang [Đăng sản phẩm mới](/create-listing).\n' +
+          '4️⃣ **Bước 4**: Tải ảnh đồ cũ, nhập giá khởi điểm, bước giá và thiết lập thời gian kết thúc đấu giá.'
+        );
+      } else if (lowerMsg.includes('phí') || lowerMsg.includes('tiền')) {
+        return (
+          '🤖 **Chính sách Phí dịch vụ Sàn Bazaar**:\n\n' +
+          '• **Người mua**: Miễn phí 100% giao dịch khi tham gia đấu giá.\n' +
+          `• **Người bán**: Phí sàn tiêu chuẩn là **${feePercent}%** trên tổng giá trị giao dịch thành công (chỉ trích trừ khi đơn hàng hoàn tất).`
+        );
+      } else if (lowerMsg.includes('escrow') || lowerMsg.includes('cọc') || lowerMsg.includes('ví')) {
+        return (
+          '🤖 **Cơ chế Ký quỹ Ví Escrow Hold**:\n\n' +
+          'Khi đặt giá, hệ thống sẽ tạm giữ tiền cọc trong Ví Escrow. ' +
+          'Nếu có người khác đặt giá cao hơn, 100% tiền cọc sẽ được tự động hoàn trả về Ví khả dụng của bạn ngay lập tức!'
+        );
+      } else if (lowerMsg.includes('mua') || lowerMsg.includes('đấu giá') || lowerMsg.includes('đặt giá')) {
+        return (
+          '🤖 **Hướng dẫn Tham gia Đấu giá**:\n\n' +
+          '• Bạn chọn sản phẩm yêu thích và nhập mức giá đặt cao hơn giá hiện tại + bước giá tối thiểu.\n' +
+          '• Tiền cọc sẽ được tạm giữ an toàn trong Ví Escrow.\n' +
+          '• Nếu chiến thắng phiên đấu giá, bạn tiến hành thanh toán đơn hàng để Người bán giao hàng cho bạn!'
+        );
       }
-      return 'Dạ hiện tại sàn đang chuẩn bị cập nhật thêm các phiên đấu giá mới. Bạn quay lại sau ít phút nhé!';
-    } else if (lowerMsg.includes('mua') || lowerMsg.includes('đấu giá') || lowerMsg.includes('đặt giá')) {
-      return (
-        '🤖 **Hướng dẫn Tham gia Đấu giá**:\n\n' +
-        '• Bạn chọn sản phẩm yêu thích và nhập mức giá đặt cao hơn giá hiện tại + bước giá tối thiểu.\n' +
-        '• Tiền cọc sẽ được tạm giữ an toàn trong Ví Escrow.\n' +
-        '• Nếu chiến thắng phiên đấu giá, bạn tiến hành thanh toán đơn hàng để Người bán giao hàng cho bạn!'
-      );
-    }
 
-    return (
-      '🤖 **Trợ lý AI Bazaar hân hạnh hỗ trợ bạn**!\n\n' +
-      'Tôi có thể giải đáp cho bạn về:\n' +
-      '• **Tác giả dự án**: Thông tin sinh viên thực hiện & Trường.\n' +
-      '• **Đăng bán đấu giá**: Cách tạo bài viết, đặt bước giá & chọn layout.\n' +
-      '• **Cơ chế Ký quỹ Ví Escrow**: Đặt cọc an toàn & hoàn tiền tự động.\n' +
-      '• **Chính sách phí sàn**: Miễn phí cho người mua, phí ưu đãi cho người bán.\n' +
-      '• **Xử lý Khiếu nại / Từ chối nhận hàng**: Đảm bảo quyền lợi 2 bên.\n\n' +
-      '*Mẹo*: Bạn cũng có thể lấy `GEMINI_API_KEY` mới (miễn phí từ https://aistudio.google.com/app/apikey) rồi dán vào tệp `.env` của backend (auction-system/.env) và khởi động lại server để trò chuyện trực tiếp với trí tuệ nhân tạo Gemini 2.5 Flash!'
-    );
-  } catch (error) {
-    console.error('Gemini API Error:', error);
-    return 'Xin lỗi, tôi đang gặp sự cố kết nối AI. Bạn vui lòng thử lại sau nhé!';
+      return (
+        '🤖 **Trợ lý AI Bazaar hân hạnh hỗ trợ bạn**!\n\n' +
+        'Tôi có thể giải đáp cho bạn về:\n' +
+        '• **Tác giả dự án**: Thông tin sinh viên thực hiện & Trường.\n' +
+        '• **Đăng bán đấu giá**: Cách tạo bài viết, đặt bước giá & chọn layout.\n' +
+        '• **Cơ chế Ký quỹ Ví Escrow**: Đặt cọc an toàn & hoàn tiền tự động.\n' +
+        '• **Chính sách phí sàn**: Miễn phí cho người mua, phí ưu đãi cho người bán.\n' +
+        '• **Tìm kiếm sản phẩm**: Bạn có thể gõ "Tìm điện thoại", "Laptop", "Máy ảnh", v.v. để xem các sản phẩm đang đấu giá.'
+      );
+    } catch (error) {
+      console.error('AI Service Chat Error:', error);
+      return 'Xin lỗi, tôi đang gặp sự cố kết nối AI. Bạn vui lòng thử lại sau nhé!';
+    }
   }
-}
 
   async generateListingContent(title: string, category?: string, condition?: string, imageUrl?: string) {
     // 1. Layer 1: Fetch/Parse product image buffer for Multimodal Gemini Vision if imageUrl is provided
@@ -441,9 +574,9 @@ Hãy trả về định dạng JSON hợp lệ duy nhất (không bọc trong th
 `;
 
       const candidateModels = [
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
+        'gemini-3.6-flash',
+        'gemini-2.5-pro',
+        'gemini-2.0-flash-exp',
       ];
       for (const modelName of candidateModels) {
         try {

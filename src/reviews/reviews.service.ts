@@ -95,9 +95,19 @@ export class ReviewsService {
       include: {
         reviewer: { select: { id: true, name: true, avatar: true } },
         order: {
-          include: {
+          select: {
+            id: true,
+            totalAmount: true,
+            buyerId: true,
+            sellerId: true,
+            status: true,
+            auctionId: true,
             auction: {
-              include: {
+              select: {
+                id: true,
+                productId: true,
+                currentPrice: true,
+                startingPrice: true,
                 product: {
                   select: {
                     id: true,
@@ -120,9 +130,19 @@ export class ReviewsService {
       include: {
         reviewer: { select: { id: true, name: true, avatar: true } },
         order: {
-          include: {
+          select: {
+            id: true,
+            totalAmount: true,
+            buyerId: true,
+            sellerId: true,
+            status: true,
+            auctionId: true,
             auction: {
-              include: {
+              select: {
+                id: true,
+                productId: true,
+                currentPrice: true,
+                startingPrice: true,
                 product: {
                   select: {
                     id: true,
@@ -145,9 +165,19 @@ export class ReviewsService {
       include: {
         reviewee: { select: { id: true, name: true, avatar: true } },
         order: {
-          include: {
+          select: {
+            id: true,
+            totalAmount: true,
+            buyerId: true,
+            sellerId: true,
+            status: true,
+            auctionId: true,
             auction: {
-              include: {
+              select: {
+                id: true,
+                productId: true,
+                currentPrice: true,
+                startingPrice: true,
                 product: {
                   select: {
                     id: true,
