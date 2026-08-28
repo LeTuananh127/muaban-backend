@@ -383,6 +383,7 @@ export class WalletsService {
 
     const buyerEscrows = await this.prisma.escrow.findMany({
       where: {
+        status: 'HELD',
         orders: { some: { buyerId: userId } },
       },
       include: {
@@ -399,6 +400,7 @@ export class WalletsService {
 
     const sellerEscrows = await this.prisma.escrow.findMany({
       where: {
+        status: 'HELD',
         orders: { some: { sellerId: userId } },
       },
       include: {
