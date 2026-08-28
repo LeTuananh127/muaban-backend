@@ -561,13 +561,63 @@ Quy tắc ứng xử và nghiệp vụ:
         estimatedMarketValue = 250000;
       }
     } else if (
+      titleLower.includes('máy cạo râu') ||
+      titleLower.includes('dao cạo') ||
+      titleLower.includes('tông đơ') ||
+      titleLower.includes('coclear') ||
+      titleLower.includes('enchen') ||
+      titleLower.includes('flyco') ||
+      titleLower.includes('bàn chải điện') ||
+      titleLower.includes('máy rửa mặt') ||
+      titleLower.includes('máy massage') ||
+      titleLower.includes('shaver') ||
+      titleLower.includes('trimmer')
+    ) {
+      if (titleLower.includes('philips') || titleLower.includes('braun') || titleLower.includes('panasonic')) {
+        estimatedMarketValue = 450000; // Philips/Braun shaver used
+      } else {
+        // COCLEAR, Enchen, Flyco, Xiaomi mini shaver (giá mua mới ~170k-200k -> giá đồ cũ như mới ~110.000 VNĐ)
+        estimatedMarketValue = 110000;
+      }
+    } else if (
       titleLower.includes('ấm siêu tốc') ||
       titleLower.includes('máy sấy') ||
       titleLower.includes('quạt mini') ||
       titleLower.includes('bàn là') ||
       titleLower.includes('đèn bàn')
     ) {
-      estimatedMarketValue = 220000;
+      estimatedMarketValue = 180000;
+    }
+
+    // Auto-detect best category name
+    let defaultCategoryName = 'Khác';
+    if (['điện thoại', 'iphone', 'samsung', 'xiaomi', 'pixel', 'ipad', 'airpod', 'sạc dự phòng', 'ốp lưng', 'gimbal', 'apple watch'].some((k) => titleLower.includes(k))) {
+      defaultCategoryName = 'Điện thoại & Phụ kiện';
+    } else if (['máy tính', 'laptop', 'macbook', 'dell', 'asus', 'rog', 'pc', 'bàn phím', 'chuột', 'màn hình', 'card màn hình', 'rtx'].some((k) => titleLower.includes(k))) {
+      defaultCategoryName = 'Máy tính & Laptop';
+    } else if (['máy ảnh', 'camera', 'sony a7', 'fujifilm', 'canon', 'eos', 'lens', 'ống kính', 'gopro', 'flycam', 'dji', 'tripod'].some((k) => titleLower.includes(k))) {
+      defaultCategoryName = 'Máy ảnh & Máy quay';
+    } else if (['âm thanh', 'loa', 'speaker', 'headphone', 'tai nghe', 'marshall', 'jbl', 'soundbar', 'mâm đĩa than', 'sennheiser'].some((k) => titleLower.includes(k))) {
+      defaultCategoryName = 'Âm thanh & Loa';
+    } else if (['đồng hồ', 'watch', 'tissot', 'seiko', 'garmin', 'casio', 'g-shock', 'citizen', 'trang sức', 'dây chuyền', 'nhẫn'].some((k) => titleLower.includes(k))) {
+      defaultCategoryName = 'Đồng hồ & Trang sức';
+    } else if (['sách', 'truyện', 'manga', 'comic', 'dragon ball', 'harry potter', 'one piece', 'kindle', 'doraemon', 'tiểu thuyết'].some((k) => titleLower.includes(k))) {
+      defaultCategoryName = 'Sách & Truyện tranh';
+    } else if (['thời trang', 'giày', 'sneaker', 'nike', 'jordan', 'adidas', 'gucci', 'kính mát', 'ví', 'hoodie', 'balo', 'áo'].some((k) => titleLower.includes(k))) {
+      defaultCategoryName = 'Thời trang & Giày dép';
+    }
+
+    // Auto-detect default condition & percentage
+    let defaultCondition = condition || 'Đã sử dụng (Như mới)';
+    let defaultPercent = '98%';
+    if (condition?.includes('100%')) {
+      defaultPercent = '100%';
+    } else if (condition?.includes('Như mới')) {
+      defaultPercent = '98%';
+    } else if (condition?.includes('Tốt')) {
+      defaultPercent = '90 - 95%';
+    } else if (condition?.includes('Khá')) {
+      defaultPercent = '80 - 85%';
     }
 
     // Dynamic starting price & bid increment based on price range
@@ -595,9 +645,10 @@ Quy tắc ứng xử và nghiệp vụ:
     let dynamicDescription = '';
     if (titleLower.includes('iphone') || titleLower.includes('macbook') || titleLower.includes('laptop') || titleLower.includes('samsung')) {
       dynamicDescription = `📌 **TỔNG QUAN SẢN PHẨM**:
-Siêu phẩm ${title} chính hãng, ngoại hình còn rất mới (${condition || 'Đã qua sử dụng 98%'}). Máy nguyên bản 100%, chưa từng qua sửa chữa hay thay thế linh kiện.
+Siêu phẩm ${title} chính hãng, máy nguyên bản 100%, chưa từng qua sửa chữa hay thay thế linh kiện.
 
-✨ **TÌNH TRẠNG & TÍNH NĂNG NỔI BẬT**:
+✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (${defaultPercent})**:
+- Ngoại hình: Còn mới khoảng **${defaultPercent}**, thân máy và màn hình đẹp leng keng, không cấn móp.
 - Màn hình sắc nét, cấu hình cực mạnh đáp ứng mượt mà mọi tác vụ làm việc, giải trí và chơi game.
 - Pin bền bỉ, mọi tính năng (FaceID/TouchID, Wifi, Bluetooth, Camera) đều hoạt động hoàn hảo.
 - Phụ kiện kèm theo đầy đủ: Cáp sạc chính hãng, tặng kèm ốp lưng/túi chống sốc.
@@ -610,10 +661,11 @@ Siêu phẩm ${title} chính hãng, ngoại hình còn rất mới (${condition 
 Nhanh tay đặt giá đấu để sở hữu chiếc ${title} với giá cực kỳ ưu đãi!`;
     } else {
       dynamicDescription = `📌 **TỔNG QUAN SẢN PHẨM**:
-Cần bán sản phẩm ${title} chính hãng, tình trạng ${condition || 'hoạt động tốt'}, được giữ gìn cẩn thận.
+Cần nhượng lại ${title} chính hãng, tình trạng ${defaultCondition}, được giữ gìn cẩn thận và vệ sinh sạch sẽ.
 
-✨ **TÌNH TRẠNG & TÍNH NĂNG NỔI BẬT**:
-- Sản phẩm nguyên bản, ngoại hình đẹp, không hư hỏng hay lỗi lầm.
+✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (${defaultPercent})**:
+- Ngoại hình: Còn mới khoảng **${defaultPercent}**, các chi tiết và bề mặt sáng bóng, không hư hỏng hay trầy xước đáng kể.
+- Hoạt động: Mọi tính năng hoạt động ổn định, mượt mà, sẵn sàng sử dụng ngay.
 - Phụ kiện đi kèm đầy đủ theo sản phẩm.
 
 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**:
@@ -629,6 +681,9 @@ Chúc các bạn đấu giá may mắn và chốt được sản phẩm ưng ý!
       suggestedBidIncrement: calculatedIncrement,
       suggestedBuyNowPrice: estimatedMarketValue,
       suggestedLayout: estimatedMarketValue >= 10000000 ? 'full_banner' : 'standard',
+      suggestedCategoryName: defaultCategoryName,
+      suggestedCondition: defaultCondition,
+      estimatedConditionPercent: defaultPercent,
     };
 
     if (!this.genAI) return fallbackResponse;
@@ -639,40 +694,61 @@ Bạn là Chuyên gia AI Cao cấp về Thẩm định Giá & Sáng tạo Nội 
 
 THÔNG TIN SẢN PHẨM TỪ NGƯỜI BÁN:
 - Tên sản phẩm: ${title}
-- Phân loại / Danh mục: ${category || 'Đồ cũ cá nhân'}
-- Tình trạng / Độ mới: ${condition || 'Đã qua sử dụng'}
-- Giá thị trường tham chiếu tại Việt Nam (Benchmark): ${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ
-${imagePart ? '- Thị giác máy tính (Multimodal Vision): Đã đính kèm ảnh sản phẩm thực tế để bạn soi chi tiết màu sắc, ngoại hình, tem nhãn, phụ kiện.' : '- Không có ảnh đính kèm.'}
+- Phân loại / Danh mục hiện tại: ${category || defaultCategoryName}
+- Tình trạng người bán chọn: ${condition || 'Chưa chọn'}
+- Giá thị trường đồ cũ tham chiếu tại Việt Nam (Benchmark): ${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ
+${imagePart ? '- Thị giác máy tính (Multimodal Vision): Đã đính kèm ảnh sản phẩm thực tế để bạn soi chi tiết màu sắc, ngoại hình, tem nhãn, độ mới, vết xước.' : '- Không có ảnh đính kèm.'}
 ${historicalContext ? `- Dữ liệu giá quá khứ trên sàn: ${historicalContext}` : ''}
 
-NHIỆM VỤ 1: ĐỊNH GIÁ THỊ TRƯỜNG THỰC TẾ TẠI VIỆT NAM (MARKET VALUATION)
-Dựa vào mức giá tham chiếu (${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ) và thông tin thực tế của sản phẩm:
-- "suggestedBuyNowPrice" (Giá mua ngay): Định giá sát mức thị trường thực tế tại Việt Nam dựa trên độ mới và thương hiệu (dao động quanh mức tham chiếu ${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ, ±20%).
-  + LƯU Ý BẮT BUỘC: Không tự ý đẩy giá các mặt hàng phổ thông / cốc bình giữ nhiệt / phụ kiện lên hàng triệu đồng!
-- "suggestedStartingPrice" (Giá khởi điểm): Đặt mức hấp dẫn bằng khoảng 40% - 50% của giá mua ngay để kích thích đấu giá sôi nổi.
-- "suggestedBidIncrement" (Bước giá): Đề xuất bước giá hợp lý:
+NHIỆM VỤ 1: PHÂN LOẠI DANH MỤC & ĐÁNH GIÁ TÌNH TRẠNG (VISION & CATEGORIZATION)
+1. "suggestedCategoryName": Chọn chính xác 1 trong các danh mục sau của hệ thống:
+   - "Điện thoại & Phụ kiện"
+   - "Máy tính & Laptop"
+   - "Máy ảnh & Máy quay"
+   - "Âm thanh & Loa"
+   - "Đồng hồ & Trang sức"
+   - "Sách & Truyện tranh"
+   - "Thời trang & Giày dép"
+   - "Khác" (Ví dụ: Máy cạo râu, đồ gia dụng, đồ chơi, lego, dụng cụ thể thao, xe cộ,...)
+2. "suggestedCondition": Dựa vào ảnh thực tế và mô tả, chọn 1 trong 4 tình trạng:
+   - "Mới 100%" (Còn nguyên seal/hộp chưa mở)
+   - "Đã sử dụng (Như mới)" (Độ mới 98% - 99%, không vết xước)
+   - "Đã sử dụng (Tốt)" (Độ mới 90% - 95%, có xước dăm nhẹ nhưng bóng đẹp)
+   - "Đã sử dụng (Khá)" (Độ mới 80% - 89%, cũ theo thời gian)
+3. "estimatedConditionPercent": Ước lượng độ mới cụ thể theo %, ví dụ "98%", "95%", "90%".
+
+NHIỆM VỤ 2: ĐỊNH GIÁ THỊ TRƯỜNG ĐỒ CŨ TẠI VIỆT NAM (MARKET VALUATION)
+Đây là nền tảng mua bán ĐỒ CŨ (second-hand), vì vậy:
+- "suggestedBuyNowPrice" (Giá mua ngay): PHẢI THẤP HƠN GIÁ MUA MỚI TRÊN THỊ TRƯỜNG (thường chỉ bằng 55% - 75% giá new tùy theo độ mới).
+  + Định giá bám sát mức tham chiếu (${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ, dao động tối đa ±20%).
+  + LƯU Ý BẮT BUỘC: Không bao giờ định giá mua ngay đồ cũ cao hơn hoặc ngang bằng giá mua mới (Ví dụ máy cạo râu mua mới 170k-200k thì giá mua ngay đồ cũ chỉ từ 90k-120k; cốc giữ nhiệt mua mới 160k thì giá mua ngay chỉ từ 80k-110k).
+- "suggestedStartingPrice" (Giá khởi điểm): Đặt bằng khoảng 40% - 50% của giá mua ngay để kích thích người mua tham gia đấu giá sôi nổi.
+- "suggestedBidIncrement" (Bước giá):
   + Dưới 300.000 VNĐ: Bước giá 10.000 VNĐ
   + 300.000 - 1.000.000 VNĐ: Bước giá 20.000 - 50.000 VNĐ
   + 1.000.000 - 5.000.000 VNĐ: Bước giá 50.000 - 100.000 VNĐ
   + Trên 10.000.000 VNĐ: Bước giá 200.000 - 500.000 VNĐ.
-- "suggestedLayout": Chọn "full_banner" (đối với hàng công nghệ/xa xỉ cao cấp >10 triệu), "grid_gallery" (đối với thời trang, phụ kiện, bộ sưu tập), hoặc "standard" (đối với đồ thông dụng).
+- "suggestedLayout": Chọn "full_banner" (hàng xa xỉ/công nghệ cao >10 triệu), "grid_gallery" (thời trang, phụ kiện, bộ sưu tập), hoặc "standard" (đồ thông dụng).
 
-NHIỆM VỤ 2: SÁNG TẠO BÀI MÔ TẢ ĐỘC ĐÁO, HẤP DẪN & TỰ NHIÊN (DYNAMIC COPYWRITING)
-Hãy viết một bài mô tả bán hàng cực kỳ lôi cuốn, văn phong tự nhiên, chân thật và thuyết phục (khoảng 150 - 250 từ).
-LƯU Ý ĐẶC BIỆT VỀ PHONG CÁCH:
-- KHÔNG dùng một khuôn mẫu cứng nhắc lặp đi lặp lại. Hãy linh hoạt biến tấu tiêu đề con, câu từ và biểu cảm emoji cho phù hợp với từng loại sản phẩm.
-- Tuyệt đối KHÔNG đánh số thứ tự (1., 2., 3., 1), 2)). Hãy dùng các dấu gạch đầu dòng (-) sạch sẽ và emoji sinh động.
-- Luôn lồng ghép tinh tế cam kết kiểm tra hàng và bảo hộ giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazzar để người mua an tâm chốt giá.
-- Kết thúc bằng một lời kêu gọi đặt giá/đấu giá hào hứng và duyên dáng.
+NHIỆM VỤ 3: SÁNG TẠO BÀI MÔ TẢ BẮT BUỘC CÓ MỤC ĐÁNH GIÁ NGOẠI HÌNH ...% (COPYWRITING)
+Viết bài mô tả bán hàng lôi cuốn, văn phong tự nhiên (khoảng 150 - 250 từ).
+LƯU Ý BẮT BUỘC:
+- Trong bài viết BẮT BUỘC có mục đánh giá ngoại hình cụ thể theo %, ví dụ: "✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (98%)**: Ngoại hình còn mới khoảng 98%, thân máy sáng bóng, lưỡi cạo/màn hình sạch sẽ, không trầy xước cấn móp..."
+- Không đánh số thứ tự (1., 2., 3.). Hãy dùng dấu gạch đầu dòng (-) sạch sẽ và emoji sinh động.
+- Lồng ghép cam kết an toàn 100% qua Ví ký quỹ Escrow Bazzar.
+- Kết thúc bằng lời kêu gọi đặt giá sôi nổi.
 
 YÊU CẦU ĐẦU RA:
 Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\`\`json bọc ngoài):
 {
-  "description": "<bài mô tả hoàn chỉnh, sinh động, giàu cảm xúc, sử dụng dấu gạch đầu dòng ->",
+  "description": "<bài mô tả hoàn chỉnh có ghi rõ ngoại hình ...%, dùng dấu gạch đầu dòng ->",
   "suggestedStartingPrice": <số nguyên VNĐ>,
   "suggestedBidIncrement": <số nguyên VNĐ>,
   "suggestedBuyNowPrice": <số nguyên VNĐ>,
-  "suggestedLayout": "standard" | "full_banner" | "grid_gallery"
+  "suggestedLayout": "standard" | "full_banner" | "grid_gallery",
+  "suggestedCategoryName": "<Tên danh mục>",
+  "suggestedCondition": "<Mới 100% | Đã sử dụng (Như mới) | Đã sử dụng (Tốt) | Đã sử dụng (Khá)>",
+  "estimatedConditionPercent": "<ví dụ 98%>"
 }
 `;
 
@@ -728,6 +804,9 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
                 suggestedLayout: ['standard', 'full_banner', 'grid_gallery'].includes(parsed.suggestedLayout)
                   ? parsed.suggestedLayout
                   : fallbackResponse.suggestedLayout,
+                suggestedCategoryName: parsed.suggestedCategoryName || fallbackResponse.suggestedCategoryName,
+                suggestedCondition: parsed.suggestedCondition || fallbackResponse.suggestedCondition,
+                estimatedConditionPercent: parsed.estimatedConditionPercent || fallbackResponse.estimatedConditionPercent,
               };
             }
           }
