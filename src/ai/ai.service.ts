@@ -353,6 +353,38 @@ Quy tắc ứng xử và nghiệp vụ:
     }
   }
 
+  // Real-time Web Market Search Helper to dynamically lookup Vietnamese prices for any product title
+  private async searchRealTimeMarket(title: string): Promise<string> {
+    try {
+      const cleanTitle = title.replace(/[^\p{L}\p{N}\s\+\-\.]/gu, ' ').trim();
+      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanTitle + ' giá bao nhiêu việt nam shopee')}`;
+      const res = await fetch(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
+        },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (res.ok) {
+        const html = await res.text();
+        const snippetMatches = html.match(/<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g);
+        if (snippetMatches && snippetMatches.length > 0) {
+          const snippets = snippetMatches
+            .slice(0, 4)
+            .map((s) => s.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').trim())
+            .filter((s) => s.length > 15);
+          if (snippets.length > 0) {
+            return snippets.map((s) => `• ${s}`).join('\n');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Real-time web search fallback error:', e?.message || e);
+    }
+    return '';
+  }
+
   async generateListingContent(title: string, category?: string, condition?: string, imageUrl?: string) {
     // 1. Layer 1: Fetch/Parse product image buffer for Multimodal Gemini Vision if imageUrl is provided
     let imagePart: any = null;
@@ -423,397 +455,89 @@ Quy tắc ứng xử và nghiệp vụ:
       console.warn('Error querying historical auction prices:', e);
     }
 
-    // 3. Layer 3: Advanced dynamic fallback valuation matrix for Vietnamese second-hand market
-    const titleLower = title.toLowerCase();
-    let estimatedMarketValue = 250000; // Default sensible market value for everyday items
+    // 3. Layer 3: Dynamic Real-Time Web Price Lookup for the exact product title & model
+    const liveWebSearchData = await this.searchRealTimeMarket(title);
 
-    // Smart Regex Parser for iPhone series (iPhone 16, 15, 14, 13, 12...)
-    const iphoneMatch = titleLower.match(/iphone\s*(\d+)(\s*pro\s*max|\s*pro|\s*plus)?/i);
-    const samsungMatch = titleLower.match(/s2(\d+)\s*(ultra|plus)?/i);
+    // Default basic fallback response (only used if Gemini API is offline/unreachable)
+    const fallbackCondition = condition || 'Đã sử dụng (Như mới)';
+    const fallbackResponse = {
+      description: `📌 **TỔNG QUAN SẢN PHẨM**:
+Cần nhượng lại ${title} chính hãng, tình trạng ${fallbackCondition}, được giữ gìn cẩn thận và hoạt động tốt.
 
-    if (iphoneMatch) {
-      const versionNumber = parseInt(iphoneMatch[1], 10);
-      const subType = (iphoneMatch[2] || '').toLowerCase();
-
-      let basePrice = 8000000;
-      if (versionNumber >= 16) {
-        basePrice = subType.includes('pro max') ? 34000000 : subType.includes('pro') ? 28000000 : 21000000;
-      } else if (versionNumber === 15) {
-        basePrice = subType.includes('pro max') ? 24000000 : subType.includes('pro') ? 20500000 : 16000000;
-      } else if (versionNumber === 14) {
-        basePrice = subType.includes('pro max') ? 18500000 : subType.includes('pro') ? 15500000 : 12500000;
-      } else if (versionNumber === 13) {
-        basePrice = subType.includes('pro max') ? 13500000 : subType.includes('pro') ? 11500000 : 9500000;
-      } else if (versionNumber === 12) {
-        basePrice = subType.includes('pro max') ? 10500000 : subType.includes('pro') ? 9000000 : 7500000;
-      } else {
-        basePrice = 6000000;
-      }
-
-      // Storage capacity additions
-      if (titleLower.includes('1tb')) basePrice += 4500000;
-      else if (titleLower.includes('512gb')) basePrice += 2500000;
-      else if (titleLower.includes('256gb')) basePrice += 1000000;
-
-      estimatedMarketValue = basePrice;
-    } else if (samsungMatch) {
-      const sNum = parseInt(samsungMatch[1], 10);
-      const isUltra = (samsungMatch[2] || '').toLowerCase() === 'ultra';
-
-      if (sNum >= 24) estimatedMarketValue = isUltra ? 23000000 : 17000000;
-      else if (sNum === 23) estimatedMarketValue = isUltra ? 16500000 : 12500000;
-      else if (sNum === 22) estimatedMarketValue = isUltra ? 12000000 : 9000000;
-
-      if (titleLower.includes('1tb') || titleLower.includes('512gb')) estimatedMarketValue += 2000000;
-    } else if (titleLower.includes('macbook')) {
-      if (titleLower.includes('m3 max') || titleLower.includes('m2 max') || titleLower.includes('m1 max')) {
-        estimatedMarketValue = 38000000;
-      } else if (titleLower.includes('16 inch') || titleLower.includes('16"') || titleLower.includes('16-inch')) {
-        estimatedMarketValue = 28500000;
-      } else if (titleLower.includes('14 inch') || titleLower.includes('14"') || titleLower.includes('14-inch')) {
-        estimatedMarketValue = 23000000;
-      } else if (titleLower.includes('air m2') || titleLower.includes('air m3')) {
-        estimatedMarketValue = 18500000;
-      } else if (titleLower.includes('air m1')) {
-        estimatedMarketValue = 12500000;
-      } else {
-        estimatedMarketValue = 18000000;
-      }
-
-      // Storage boost for 1TB / 2TB / 512GB
-      if (titleLower.includes('1tb') || titleLower.includes('2tb')) {
-        estimatedMarketValue += 4000000;
-      } else if (titleLower.includes('512gb')) {
-        estimatedMarketValue += 1500000;
-      }
-    } else if (titleLower.includes('rtx 4090') || titleLower.includes('rtx 4080')) {
-      estimatedMarketValue = 35000000;
-    } else if (titleLower.includes('sony a7') || titleLower.includes('canon r6')) {
-      estimatedMarketValue = 30000000;
-    } else if (
-      titleLower.includes('chuột') ||
-      titleLower.includes('mouse') ||
-      titleLower.includes('vxe') ||
-      titleLower.includes('vgn') ||
-      titleLower.includes('g102') ||
-      titleLower.includes('pulsar') ||
-      titleLower.includes('lamzu') ||
-      titleLower.includes('fuhlen')
-    ) {
-      if (titleLower.includes('superlight') || titleLower.includes('g pro') || titleLower.includes('viper v3') || titleLower.includes('deathadder v3')) {
-        // Chuột cao cấp (Mua mới ~2.8tr - 3.5tr -> Đồ cũ like new ~1.8tr - 2.2tr)
-        estimatedMarketValue = 1900000;
-      } else if (titleLower.includes('vxe r1') || titleLower.includes('r1 se') || titleLower.includes('vgn f1') || titleLower.includes('g102') || titleLower.includes('fuhlen') || titleLower.includes('dareu')) {
-        // Chuột gaming quốc dân giá rẻ (VXE R1 SE+, VGN Dragonfly, G102... Mua mới ~450k - 550k -> Đồ cũ like new ~320.000 VNĐ)
-        estimatedMarketValue = 320000;
-      } else {
-        estimatedMarketValue = 380000;
-      }
-    } else if (
-      titleLower.includes('bàn phím') ||
-      titleLower.includes('keyboard') ||
-      titleLower.includes('keychron') ||
-      titleLower.includes('akko') ||
-      titleLower.includes('monsgeek') ||
-      titleLower.includes('rk61') ||
-      titleLower.includes('fl-esports') ||
-      titleLower.includes('aula')
-    ) {
-      if (titleLower.includes('keychron q') || titleLower.includes('filco') || titleLower.includes('realforce') || titleLower.includes('custom')) {
-        estimatedMarketValue = 2500000;
-      } else if (titleLower.includes('akko') || titleLower.includes('monsgeek') || titleLower.includes('keychron') || titleLower.includes('fl-esports') || titleLower.includes('aula f75')) {
-        estimatedMarketValue = 850000; // Phím cơ tầm trung mua mới ~1.2tr - 1.6tr -> đồ cũ ~850k
-      } else {
-        estimatedMarketValue = 450000;
-      }
-    } else if (
-      titleLower.includes('pad chuột') ||
-      titleLower.includes('lót chuột') ||
-      titleLower.includes('mousepad')
-    ) {
-      estimatedMarketValue = 120000;
-    } else if (
-      titleLower.includes('laptop') ||
-      titleLower.includes('thinkpad') ||
-      titleLower.includes('asus rog') ||
-      titleLower.includes('alienware') ||
-      titleLower.includes('legion') ||
-      (titleLower.includes('pc gaming') || titleLower.includes('case gaming') || titleLower.includes('dàn máy')) ||
-      (titleLower.includes('máy tính') && !titleLower.includes('chuột') && !titleLower.includes('bàn phím') && !titleLower.includes('bỏ túi'))
-    ) {
-      estimatedMarketValue = 14000000;
-    } else if (
-      titleLower.includes('cốc giữ nhiệt') ||
-      titleLower.includes('bình giữ nhiệt') ||
-      titleLower.includes('ly giữ nhiệt') ||
-      titleLower.includes('fanhouse') ||
-      titleLower.includes('lock&lock') ||
-      titleLower.includes('lock and lock') ||
-      titleLower.includes('elmich') ||
-      titleLower.includes('cốc nước') ||
-      titleLower.includes('bình nước')
-    ) {
-      if (titleLower.includes('stanley') || titleLower.includes('yeti')) {
-        estimatedMarketValue = 550000;
-      } else {
-        estimatedMarketValue = 160000; // Fanhouse, Lock&Lock tumbler ~160.000 VNĐ
-      }
-    } else if (
-      titleLower.includes('sách') ||
-      titleLower.includes('truyện') ||
-      titleLower.includes('manga') ||
-      titleLower.includes('comic') ||
-      titleLower.includes('doraemon') ||
-      titleLower.includes('conan') ||
-      titleLower.includes('one piece') ||
-      titleLower.includes('tiểu thuyết')
-    ) {
-      if (titleLower.includes('trọn bộ') || titleLower.includes('full bộ') || titleLower.includes('boxset')) {
-        estimatedMarketValue = 450000;
-      } else {
-        estimatedMarketValue = 65000;
-      }
-    } else if (
-      titleLower.includes('ốp lưng') ||
-      titleLower.includes('cường lực') ||
-      titleLower.includes('cáp sạc') ||
-      titleLower.includes('dây sạc') ||
-      titleLower.includes('giá đỡ')
-    ) {
-      estimatedMarketValue = 85000;
-    } else if (
-      titleLower.includes('áo thun') ||
-      titleLower.includes('áo phông') ||
-      titleLower.includes('quần short') ||
-      titleLower.includes('mũ') ||
-      titleLower.includes('nón')
-    ) {
-      estimatedMarketValue = 150000;
-    } else if (
-      titleLower.includes('giày') ||
-      titleLower.includes('sneaker') ||
-      titleLower.includes('nike') ||
-      titleLower.includes('adidas') ||
-      titleLower.includes('jordan')
-    ) {
-      estimatedMarketValue = titleLower.includes('jordan') || titleLower.includes('yeezy') ? 2500000 : 850000;
-    } else if (
-      titleLower.includes('tai nghe') ||
-      titleLower.includes('airpod') ||
-      titleLower.includes('headphone')
-    ) {
-      if (titleLower.includes('airpod pro') || titleLower.includes('sony wh')) {
-        estimatedMarketValue = 3200000;
-      } else if (titleLower.includes('airpod')) {
-        estimatedMarketValue = 1800000;
-      } else {
-        estimatedMarketValue = 250000;
-      }
-    } else if (
-      titleLower.includes('vợt') ||
-      titleLower.includes('cầu lông') ||
-      titleLower.includes('yonex') ||
-      titleLower.includes('lining') ||
-      titleLower.includes('victor') ||
-      titleLower.includes('kumpoo') ||
-      titleLower.includes('tennis') ||
-      titleLower.includes('pickleball') ||
-      titleLower.includes('babolat') ||
-      titleLower.includes('wilson') ||
-      titleLower.includes('astrox')
-    ) {
-      if (titleLower.includes('100zz') || titleLower.includes('88d pro') || titleLower.includes('77 pro') || titleLower.includes('axforce 100') || titleLower.includes('pure drive')) {
-        // Vợt cao cấp thi đấu (Mua mới ~3.5tr - 4.5tr -> Đồ cũ like new ~2.4tr - 2.8tr)
-        estimatedMarketValue = 2500000;
-      } else if (
-        titleLower.includes('astrox 77 play') ||
-        titleLower.includes('77 play') ||
-        titleLower.includes('astrox 88 play') ||
-        titleLower.includes('play') ||
-        titleLower.includes('tour') ||
-        titleLower.includes('axforce') ||
-        titleLower.includes('halbertec') ||
-        titleLower.includes('windstorm')
-      ) {
-        // Vợt phân khúc tầm trung phổ biến như Yonex Astrox 77 Play, Astrox 88 Play (Mua mới ~1.050.000 - 1.350.000 VNĐ -> Đồ cũ Like New ~750.000 - 850.000 VNĐ)
-        estimatedMarketValue = 800000;
-      } else if (titleLower.includes('yonex') || titleLower.includes('lining') || titleLower.includes('victor')) {
-        estimatedMarketValue = 650000;
-      } else {
-        estimatedMarketValue = 350000;
-      }
-    } else if (
-      titleLower.includes('máy cạo râu') ||
-      titleLower.includes('dao cạo') ||
-      titleLower.includes('tông đơ') ||
-      titleLower.includes('coclear') ||
-      titleLower.includes('enchen') ||
-      titleLower.includes('flyco') ||
-      titleLower.includes('bàn chải điện') ||
-      titleLower.includes('máy rửa mặt') ||
-      titleLower.includes('máy massage') ||
-      titleLower.includes('shaver') ||
-      titleLower.includes('trimmer')
-    ) {
-      if (titleLower.includes('philips') || titleLower.includes('braun') || titleLower.includes('panasonic')) {
-        estimatedMarketValue = 450000; // Philips/Braun shaver used
-      } else {
-        // COCLEAR, Enchen, Flyco, Xiaomi mini shaver (giá mua mới ~170k-200k -> giá đồ cũ như mới ~110.000 VNĐ)
-        estimatedMarketValue = 110000;
-      }
-    } else if (
-      titleLower.includes('ấm siêu tốc') ||
-      titleLower.includes('máy sấy') ||
-      titleLower.includes('quạt mini') ||
-      titleLower.includes('bàn là') ||
-      titleLower.includes('đèn bàn')
-    ) {
-      estimatedMarketValue = 180000;
-    }
-
-    // Auto-detect best category name
-    let defaultCategoryName = 'Khác';
-    if (['điện thoại', 'iphone', 'samsung', 'xiaomi', 'pixel', 'ipad', 'airpod', 'sạc dự phòng', 'ốp lưng', 'gimbal', 'apple watch'].some((k) => titleLower.includes(k))) {
-      defaultCategoryName = 'Điện thoại & Phụ kiện';
-    } else if (['máy tính', 'laptop', 'macbook', 'dell', 'asus', 'rog', 'pc', 'bàn phím', 'chuột', 'màn hình', 'card màn hình', 'rtx'].some((k) => titleLower.includes(k))) {
-      defaultCategoryName = 'Máy tính & Laptop';
-    } else if (['máy ảnh', 'camera', 'sony a7', 'fujifilm', 'canon', 'eos', 'lens', 'ống kính', 'gopro', 'flycam', 'dji', 'tripod'].some((k) => titleLower.includes(k))) {
-      defaultCategoryName = 'Máy ảnh & Máy quay';
-    } else if (['âm thanh', 'loa', 'speaker', 'headphone', 'tai nghe', 'marshall', 'jbl', 'soundbar', 'mâm đĩa than', 'sennheiser'].some((k) => titleLower.includes(k))) {
-      defaultCategoryName = 'Âm thanh & Loa';
-    } else if (['đồng hồ', 'watch', 'tissot', 'seiko', 'garmin', 'casio', 'g-shock', 'citizen', 'trang sức', 'dây chuyền', 'nhẫn'].some((k) => titleLower.includes(k))) {
-      defaultCategoryName = 'Đồng hồ & Trang sức';
-    } else if (['sách', 'truyện', 'manga', 'comic', 'dragon ball', 'harry potter', 'one piece', 'kindle', 'doraemon', 'tiểu thuyết'].some((k) => titleLower.includes(k))) {
-      defaultCategoryName = 'Sách & Truyện tranh';
-    } else if (['thời trang', 'giày', 'sneaker', 'nike', 'jordan', 'adidas', 'gucci', 'kính mát', 'ví', 'hoodie', 'balo', 'áo'].some((k) => titleLower.includes(k))) {
-      defaultCategoryName = 'Thời trang & Giày dép';
-    }
-
-    // Auto-detect default condition & percentage
-    let defaultCondition = condition || 'Đã sử dụng (Như mới)';
-    let defaultPercent = '98%';
-    if (condition?.includes('100%')) {
-      defaultPercent = '100%';
-    } else if (condition?.includes('Như mới')) {
-      defaultPercent = '98%';
-    } else if (condition?.includes('Tốt')) {
-      defaultPercent = '90 - 95%';
-    } else if (condition?.includes('Khá')) {
-      defaultPercent = '80 - 85%';
-    }
-
-    // Dynamic starting price & bid increment based on price range
-    let calculatedStarting = 0;
-    let calculatedIncrement = 10000;
-
-    if (estimatedMarketValue <= 300000) {
-      calculatedStarting = Math.max(20000, Math.round((estimatedMarketValue * 0.45) / 10000) * 10000);
-      calculatedIncrement = 10000;
-    } else if (estimatedMarketValue <= 1000000) {
-      calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 20000) * 20000;
-      calculatedIncrement = 20000;
-    } else if (estimatedMarketValue <= 5000000) {
-      calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 50000) * 50000;
-      calculatedIncrement = 50000;
-    } else if (estimatedMarketValue <= 15000000) {
-      calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 100000) * 100000;
-      calculatedIncrement = 100000;
-    } else {
-      calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 100000) * 100000;
-      calculatedIncrement = 200000;
-    }
-
-    // Rich dynamic description builder for Fallback (when AI SDK is offline)
-    let dynamicDescription = '';
-    if (titleLower.includes('iphone') || titleLower.includes('macbook') || titleLower.includes('laptop') || titleLower.includes('samsung')) {
-      dynamicDescription = `📌 **TỔNG QUAN SẢN PHẨM**:
-Siêu phẩm ${title} chính hãng, máy nguyên bản 100%, chưa từng qua sửa chữa hay thay thế linh kiện.
-
-✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (${defaultPercent})**:
-- Ngoại hình: Còn mới khoảng **${defaultPercent}**, thân máy và màn hình đẹp leng keng, không cấn móp.
-- Màn hình sắc nét, cấu hình cực mạnh đáp ứng mượt mà mọi tác vụ làm việc, giải trí và chơi game.
-- Pin bền bỉ, mọi tính năng (FaceID/TouchID, Wifi, Bluetooth, Camera) đều hoạt động hoàn hảo.
-- Phụ kiện kèm theo đầy đủ: Cáp sạc chính hãng, tặng kèm ốp lưng/túi chống sốc.
-
-🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**:
-- Bao test sử dụng 7 ngày thoải mái.
-- Bảo hộ tài chính an toàn 100% qua cơ chế Ví ký quỹ Escrow Bazzar - Hoàn cọc tức thì nếu sản phẩm không đúng mô tả!
-
-⚡ **LỜI KÊU GỌI ĐẶT GIÁ**:
-Nhanh tay đặt giá đấu để sở hữu chiếc ${title} với giá cực kỳ ưu đãi!`;
-    } else {
-      dynamicDescription = `📌 **TỔNG QUAN SẢN PHẨM**:
-Cần nhượng lại ${title} chính hãng, tình trạng ${defaultCondition}, được giữ gìn cẩn thận và vệ sinh sạch sẽ.
-
-✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (${defaultPercent})**:
-- Ngoại hình: Còn mới khoảng **${defaultPercent}**, các chi tiết và bề mặt sáng bóng, không hư hỏng hay trầy xước đáng kể.
-- Hoạt động: Mọi tính năng hoạt động ổn định, mượt mà, sẵn sàng sử dụng ngay.
-- Phụ kiện đi kèm đầy đủ theo sản phẩm.
+✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (98%)**:
+- Ngoại hình: Còn mới khoảng 98%, các chi tiết sạch đẹp, không trầy xước cấn móp.
+- Hoạt động: Mọi tính năng hoạt động ổn định, mượt mà, đầy đủ phụ kiện.
 
 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**:
 - Giao dịch minh bạch, bảo hộ an toàn 100% qua Ví ký quỹ Escrow Bazzar.
 
 ⚡ **LỜI KÊU GỌI ĐẶT GIÁ**:
-Chúc các bạn đấu giá may mắn và chốt được sản phẩm ưng ý!`;
-    }
-
-    const fallbackResponse = {
-      description: dynamicDescription,
-      suggestedStartingPrice: calculatedStarting,
-      suggestedBidIncrement: calculatedIncrement,
-      suggestedBuyNowPrice: estimatedMarketValue,
-      suggestedLayout: estimatedMarketValue >= 10000000 ? 'full_banner' : 'standard',
-      suggestedCategoryName: defaultCategoryName,
-      suggestedCondition: defaultCondition,
-      estimatedConditionPercent: defaultPercent,
+Chúc các bạn đấu giá may mắn và chốt được sản phẩm ưng ý!`,
+      suggestedStartingPrice: 100000,
+      suggestedBidIncrement: 20000,
+      suggestedBuyNowPrice: 250000,
+      suggestedLayout: 'standard',
+      suggestedCategoryName: 'Khác',
+      suggestedCondition: fallbackCondition,
+      estimatedConditionPercent: '98%',
     };
 
     if (!this.genAI) return fallbackResponse;
 
     try {
       const prompt = `
-Bạn là Chuyên gia AI Thẩm định Giá & Sáng tạo Nội dung Bán hàng (Copywriting) hàng đầu trên sàn đấu giá đồ cũ Bazzar.
+Bạn là Chuyên gia AI Cao cấp về Thẩm định Giá Thị trường & Sáng tạo Nội dung Bán hàng (Copywriting) trên sàn đấu giá đồ cũ Bazzar.
 
-THÔNG TIN SẢN PHẨM TỪ NGƯỜI BÁN:
-- Tên sản phẩm: ${title}
-- Phân loại / Danh mục hiện tại: ${category || defaultCategoryName}
+THÔNG TIN SẢN PHẨM ĐẦU VÀO:
+- Tiêu đề sản phẩm đầy đủ từ người bán: "${title}"
+- Danh mục người bán chọn: ${category || 'Chưa chọn'}
 - Tình trạng người bán chọn: ${condition || 'Chưa chọn'}
-- Giá đồ cũ ước tính sơ bộ: ${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ
-${imagePart ? '- Thị giác máy tính (Multimodal Vision): Đã đính kèm ảnh sản phẩm thực tế để bạn soi chi tiết màu sắc, ngoại hình, tem nhãn, độ mới, vết xước.' : '- Không có ảnh đính kèm.'}
+${liveWebSearchData ? `\nKẾT QUẢ TRA CỨU GIÁ THỜI GIAN THỰC TRÊN CÁC SÀN THƯƠNG MẠI ĐIỆN TỬ & CỬA HÀNG TẠI VIỆT NAM:\n${liveWebSearchData}\n` : ''}
+${imagePart ? '- Thị giác máy tính (Multimodal Vision): Đã đính kèm ảnh sản phẩm thực tế để bạn soi chi tiết ngoại hình, độ mới, vết xước, tem mác, phụ kiện.' : '- Không có ảnh đính kèm.'}
 ${historicalContext ? `- Dữ liệu giá quá khứ trên sàn: ${historicalContext}` : ''}
 
-NHIỆM VỤ 1: TRA CỨU GIÁ THỊ TRƯỜNG THỰC TẾ & ĐỊNH GIÁ ĐỒ CŨ (REAL-TIME SEARCH & VALUATION)
-1. Hãy vận dụng công cụ tìm kiếm Google Search và kho tri thức thị trường Việt Nam (Shopee, Lazada, Tiki, CellphoneS, VNB Sports, Thế Giới Di Động, Hoàng Hà, ShopVNB...) để tra cứu giá mua mới chính hãng của "${title}".
-2. Định giá ĐỒ CŨ (Second-hand) hợp lý theo tình trạng:
-   - "suggestedBuyNowPrice" (Giá mua ngay):
-     + Đồ cũ Như mới (98% - 99%): Bằng khoảng 65% - 80% giá mua mới thị trường (Ví dụ vợt Yonex Astrox 77 Play mua mới ~1.050.000 - 1.200.000đ -> Giá mua ngay đồ cũ như mới khoảng 750.000đ - 850.000đ).
-     + Đồ cũ Tốt (90% - 95%): Bằng khoảng 50% - 65% giá mua mới.
-     + Hàng gia dụng phổ thông nhỏ (cốc giữ nhiệt, máy cạo râu mini): Giá mua mới ~150k - 200k -> Giá mua ngay đồ cũ ~80k - 120k.
-   - "suggestedStartingPrice" (Giá khởi điểm): Bằng khoảng 40% - 50% của giá mua ngay để kích thích đấu giá sôi nổi.
-   - "suggestedBidIncrement" (Bước giá):
-     + Dưới 300.000 VNĐ: Bước giá 10.000 VNĐ
-     + 300.000 - 1.000.000 VNĐ: Bước giá 20.000 - 50.000 VNĐ
-     + 1.000.000 - 5.000.000 VNĐ: Bước giá 50.000 - 100.000 VNĐ
-     + Trên 10.000.000 VNĐ: Bước giá 200.000 - 500.000 VNĐ.
-   - "suggestedLayout": Chọn "full_banner" (hàng cao cấp >10 triệu), "grid_gallery" (thời trang, đồ thể thao, sưu tầm), hoặc "standard" (đồ thông dụng).
-
-NHIỆM VỤ 2: PHÂN LOẠI DANH MỤC & ĐÁNH GIÁ TÌNH TRẠNG
-1. "suggestedCategoryName": Chọn chính xác 1 trong các danh mục:
+NHIỆM VỤ 1: ĐỊNH VỊ SẢN PHẨM & TRA CỨU GIÁ MUA MỚI (MARKET ANALYSIS)
+1. Đọc và phân tích kỹ TOÀN BỘ CỤM TIÊU ĐỀ: Nhận diện chính xác Hãng sản xuất, Tên sản phẩm, Mã model chi tiết, Phiên bản, Phân khúc sản phẩm (Ví dụ: "chuột gaming VXE R1 SE+", "vợt cầu lông Yonex Astrox 77 Play", "cốc giữ nhiệt Fanhouse 510ml", "máy cạo râu Flyco FS370", "iPhone 15 Pro Max 256GB", "Macbook Air M2", "Giày Nike Pegasus 40",...).
+2. Dựa vào kết quả tra cứu web đính kèm và kho dữ liệu khổng lồ của bạn, hãy xác định chính xác "Mức giá mua mới chính hãng niêm yết tại Việt Nam" của sản phẩm này.
+3. Tự động chọn đúng 1 trong các Danh mục hệ thống ("suggestedCategoryName"):
    - "Điện thoại & Phụ kiện"
-   - "Máy tính & Laptop"
+   - "Máy tính & Laptop" (Gồm máy tính, laptop, màn hình, chuột, bàn phím, linh kiện PC...)
    - "Máy ảnh & Máy quay"
    - "Âm thanh & Loa"
    - "Đồng hồ & Trang sức"
    - "Sách & Truyện tranh"
    - "Thời trang & Giày dép"
-   - "Khác" (Bao gồm: Vợt cầu lông, dụng cụ thể thao, máy cạo râu, đồ gia dụng, đồ chơi, xe cộ,...)
-2. "suggestedCondition": Chọn 1 trong 4: "Mới 100%" | "Đã sử dụng (Như mới)" | "Đã sử dụng (Tốt)" | "Đã sử dụng (Khá)".
-3. "estimatedConditionPercent": Ước lượng độ mới cụ thể theo %, ví dụ "98%", "95%", "90%".
+   - "Khác" (Gồm dụng cụ thể thao/vợt cầu lông, đồ gia dụng, đồ chăm sóc cá nhân, đồ chơi, xe cộ...)
 
-NHIỆM VỤ 3: SÁNG TẠO BÀI MÔ TẢ CÓ MỤC ĐÁNH GIÁ NGOẠI HÌNH ...% (COPYWRITING)
+NHIỆM VỤ 2: THỊ GIÁC MÁY TÍNH (VISION) & ĐÁNH GIÁ NGOẠI HÌNH
+1. Nếu có ảnh chụp đính kèm: Soi kỹ ngoại hình thực tế (độ bóng bẩy, vết xước dăm, cấn móp, bụi bẩn, phụ kiện).
+2. "suggestedCondition": Chọn 1 trong 4:
+   - "Mới 100%" (Nguyên seal/hộp chưa sử dụng)
+   - "Đã sử dụng (Như mới)" (Độ mới 98% - 99%, thân máy/bề mặt đẹp không trầy xước)
+   - "Đã sử dụng (Tốt)" (Độ mới 90% - 95%, có xước nhẹ do sử dụng nhưng bóng đẹp)
+   - "Đã sử dụng (Khá)" (Độ mới 80% - 89%, cũ theo thời gian)
+3. "estimatedConditionPercent": Ước lượng độ mới cụ thể theo %, ví dụ "99%", "98%", "95%", "90%".
+
+NHIỆM VỤ 3: ĐỊNH GIÁ ĐỒ CŨ SECOND-HAND CHUẨN XÁC
+Bazzar là sàn đấu giá ĐỒ CŨ, do đó:
+1. "suggestedBuyNowPrice" (Giá mua ngay đồ cũ):
+   - Phải dựa trên giá mua mới của ĐÚNG SẢN PHẨM / ĐÚNG MÃ ĐÓ trên thị trường Việt Nam:
+     + Mới 100%: ~85% - 90% giá mới.
+     + Như mới (98% - 99%): ~65% - 80% giá mới (Ví dụ chuột VXE R1 SE+ giá mới ~480k -> Giá mua ngay đồ cũ ~300k - 350k; Vợt Yonex Astrox 77 Play giá mới ~1.1tr -> Giá mua ngay đồ cũ ~750k - 850k; Cốc Fanhouse giá mới ~160k -> Giá mua ngay đồ cũ ~90k - 110k).
+     + Tốt (90% - 95%): ~50% - 65% giá mới.
+     + Khá (80% - 89%): ~35% - 50% giá mới.
+2. "suggestedStartingPrice" (Giá khởi điểm): Đặt ở mức hấp dẫn bằng khoảng 40% - 50% của Giá mua ngay để kích thích người mua tham gia đấu giá sôi nổi.
+3. "suggestedBidIncrement" (Bước giá):
+   - Dưới 300.000 VNĐ: 10.000 VNĐ
+   - 300.000 - 1.000.000 VNĐ: 20.000 - 50.000 VNĐ
+   - 1.000.000 - 5.000.000 VNĐ: 50.000 - 100.000 VNĐ
+   - Trên 10.000.000 VNĐ: 200.000 - 500.000 VNĐ.
+4. "suggestedLayout": Chọn "full_banner" (hàng cao cấp/công nghệ xa xỉ >10 triệu), "grid_gallery" (thời trang, đồ thể thao, sưu tầm), hoặc "standard" (đồ thông dụng).
+
+NHIỆM VỤ 4: SÁNG TẠO BÀI MÔ TẢ CÓ MỤC ĐÁNH GIÁ NGOẠI HÌNH ...% (COPYWRITING)
 Viết bài mô tả bán hàng lôi cuốn, văn phong tự nhiên (khoảng 150 - 250 từ).
 LƯU Ý BẮT BUỘC:
-- Bắt buộc có mục đánh giá ngoại hình cụ thể theo %, ví dụ: "✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (98%)**: Ngoại hình còn mới khoảng 98%, khung vợt/thân máy sáng đẹp, không trầy xước nứt gãy..."
+- Bắt buộc có mục đánh giá ngoại hình cụ thể theo %, ví dụ: "✨ **TÌNH TRẠNG & ĐÁNH GIÁ NGOẠI HÌNH (98%)**: Ngoại hình còn mới khoảng 98%, thân máy/bề mặt sáng đẹp, không trầy xước cấn móp..."
 - Không đánh số thứ tự (1., 2., 3.). Dùng dấu gạch đầu dòng (-) sạch sẽ và emoji sinh động.
 - Lồng ghép cam kết an toàn 100% qua Ví ký quỹ Escrow Bazzar.
 - Kết thúc bằng lời kêu gọi đặt giá sôi nổi.
@@ -832,40 +556,21 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
 }
 `;
 
-      const candidateConfigs: Array<{ model: string; tools?: any[] }> = [
-        {
-          model: 'gemini-2.0-flash',
-          tools: [{ googleSearch: {} } as any],
-        },
-        {
-          model: 'gemini-1.5-flash',
-          tools: [{ googleSearch: {} } as any],
-        },
-        {
-          model: 'gemini-2.0-flash',
-        },
-        {
-          model: 'gemini-1.5-flash',
-        },
-        {
-          model: 'gemini-1.5-pro',
-        },
+      const candidateModels = [
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
       ];
 
-      for (const config of candidateConfigs) {
+      for (const modelName of candidateModels) {
         try {
-          const modelOptions: any = {
-            model: config.model,
+          const model = this.genAI.getGenerativeModel({
+            model: modelName,
             generationConfig: {
-              temperature: 0.25,
+              temperature: 0.2,
               topP: 0.9,
             },
-          };
-          if (config.tools) {
-            modelOptions.tools = config.tools;
-          }
-
-          const model = this.genAI.getGenerativeModel(modelOptions);
+          });
           const contentParts: any[] = [prompt];
           if (imagePart) contentParts.push(imagePart);
 
@@ -874,24 +579,15 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
           const jsonMatch = text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            let startPrice = Number(parsed.suggestedStartingPrice);
-            let buyNowPrice = Number(parsed.suggestedBuyNowPrice);
+            const startPrice = Number(parsed.suggestedStartingPrice);
+            const buyNowPrice = Number(parsed.suggestedBuyNowPrice);
             let increment = Number(parsed.suggestedBidIncrement);
 
-            // Guardrail against hallucinated prices deviating too far from Vietnamese market value
-            if (estimatedMarketValue > 0) {
-              if (buyNowPrice > estimatedMarketValue * 3.5 || buyNowPrice <= 0) {
-                buyNowPrice = estimatedMarketValue;
-              }
-              if (startPrice > buyNowPrice * 0.8 || startPrice <= 0) {
-                startPrice = Math.max(20000, Math.round((buyNowPrice * 0.45) / 10000) * 10000);
-              }
-              if (!increment || increment <= 0) {
-                increment = buyNowPrice <= 300000 ? 10000 : buyNowPrice <= 1000000 ? 20000 : 50000;
-              }
+            if (!increment || increment <= 0) {
+              increment = buyNowPrice <= 300000 ? 10000 : buyNowPrice <= 1000000 ? 20000 : 50000;
             }
 
-            // Clean up any unwanted leading 1. 2. 3. numbers if AI generated them
+            // Clean up any unwanted leading numbers if AI generated them
             let cleanDescription = (parsed.description || fallbackResponse.description)
               .replace(/^\s*\d+[\.\)]\s*/gm, '- ');
 
@@ -899,11 +595,13 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
               return {
                 description: cleanDescription,
                 suggestedStartingPrice: startPrice,
-                suggestedBidIncrement: increment || fallbackResponse.suggestedBidIncrement,
+                suggestedBidIncrement: increment,
                 suggestedBuyNowPrice: buyNowPrice,
                 suggestedLayout: ['standard', 'full_banner', 'grid_gallery'].includes(parsed.suggestedLayout)
                   ? parsed.suggestedLayout
-                  : fallbackResponse.suggestedLayout,
+                  : buyNowPrice >= 10000000
+                    ? 'full_banner'
+                    : 'standard',
                 suggestedCategoryName: parsed.suggestedCategoryName || fallbackResponse.suggestedCategoryName,
                 suggestedCondition: parsed.suggestedCondition || fallbackResponse.suggestedCondition,
                 estimatedConditionPercent: parsed.estimatedConditionPercent || fallbackResponse.estimatedConditionPercent,
@@ -911,7 +609,7 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
             }
           }
         } catch (err) {
-          console.warn(`Model ${config.model} with search failed in generateListingContent`, err?.message || err);
+          console.warn(`Model ${modelName} failed in generateListingContent:`, err?.message || err);
         }
       }
     } catch (e) {
