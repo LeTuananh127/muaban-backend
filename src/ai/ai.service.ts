@@ -17,7 +17,7 @@ export class AiService {
   async getChatResponse(message: string, history: Array<{ role: 'user' | 'model'; text: string }>) {
     if (!this.genAI) {
       return (
-        'Chào bạn! Trợ lý AI Muabandocuui chưa được kích hoạt vì thiếu GEMINI_API_KEY trong cấu hình backend. ' +
+        'Chào bạn! Trợ lý AI Bazzar chưa được kích hoạt vì thiếu GEMINI_API_KEY trong cấu hình backend. ' +
         'Vui lòng thêm GEMINI_API_KEY vào tệp `.env` của backend (auction-system/.env) và khởi động lại server để bắt đầu trò chuyện với AI của hệ thống!'
       );
     }
@@ -510,7 +510,7 @@ Siêu phẩm ${title} chính hãng, ngoại hình còn rất mới (${condition 
 
 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**:
 - Bao test sử dụng 7 ngày thoải mái.
-- Bảo hộ tài chính an toàn 100% qua cơ chế Ví ký quỹ Escrow Bazaar (bazaar.vn) - Hoàn cọc tức thì nếu sản phẩm không đúng mô tả!
+- Bảo hộ tài chính an toàn 100% qua cơ chế Ví ký quỹ Escrow Bazzar - Hoàn cọc tức thì nếu sản phẩm không đúng mô tả!
 
 ⚡ **LỜI KÊU GỌI ĐẶT GIÁ**:
 Nhanh tay đặt giá đấu để sở hữu chiếc ${title} với giá cực kỳ ưu đãi!`;
@@ -523,7 +523,7 @@ Cần bán sản phẩm ${title} chính hãng, tình trạng ${condition || 'ho�
 - Phụ kiện đi kèm đầy đủ theo sản phẩm.
 
 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**:
-- Giao dịch minh bạch, bảo hộ an toàn 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn).
+- Giao dịch minh bạch, bảo hộ an toàn 100% qua Ví ký quỹ Escrow Bazzar.
 
 ⚡ **LỜI KÊU GỌI ĐẶT GIÁ**:
 Chúc các bạn đấu giá may mắn và chốt được sản phẩm ưng ý!`;
@@ -541,7 +541,7 @@ Chúc các bạn đấu giá may mắn và chốt được sản phẩm ưng ý!
 
     try {
       const prompt = `
-Bạn là Trợ lý AI Chuyên gia Marketing & Định giá Sản phẩm Đồ cũ trên nền tảng Bazaar (bazaar.vn).
+Bạn là Trợ lý AI Chuyên gia Marketing & Định giá Sản phẩm Đồ cũ trên sàn Bazzar.
 Người bán cung cấp thông tin sản phẩm:
 - Tên sản phẩm: ${title}
 - Danh mục: ${category || 'Đồ cũ cá nhân'}
@@ -557,7 +557,7 @@ Hãy dùng toàn bộ các dấu gạch đầu dòng (-) sạch sẽ kèm biểu
 
 - 📌 **TỔNG QUAN SẢN PHẨM**: Giới thiệu lôi cuốn về tên sản phẩm, nguồn gốc chính hãng và độ mới.
 - ✨ **TÌNH TRẠNG & TÍNH NĂNG NỔI BẬT**: Liệt kê chi tiết ngoại hình, độ mượt mà, linh kiện nguyên bản và phụ kiện đi kèm.
-- 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**: Khẳng định chính sách bao test và bảo vệ giao dịch 100% qua Ví ký quỹ Escrow Bazaar (bazaar.vn).
+- 🛡️ **CAM KẾT & CHÍNH SÁCH BẢO HỘ**: Khẳng định chính sách bao test và bảo vệ giao dịch 100% qua Ví ký quỹ Escrow Bazzar.
 - ⚡ **LỜI KÊU GỌI ĐẶT GIÁ**: Kêu gọi người mua hào hứng tham gia đặt giá ngay.
 
 HƯỚNG DẪN ĐỊNH GIÁ AI THÔNG MINH TẠI VIỆT NAM:
