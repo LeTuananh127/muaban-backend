@@ -425,7 +425,7 @@ Quy tắc ứng xử và nghiệp vụ:
 
     // 3. Layer 3: Advanced dynamic fallback valuation matrix for Vietnamese second-hand market
     const titleLower = title.toLowerCase();
-    let estimatedMarketValue = 5000000;
+    let estimatedMarketValue = 250000; // Default sensible market value for everyday items
 
     // Smart Regex Parser for iPhone series (iPhone 16, 15, 14, 13, 12...)
     const iphoneMatch = titleLower.match(/iphone\s*(\d+)(\s*pro\s*max|\s*pro|\s*plus)?/i);
@@ -492,10 +492,104 @@ Quy tắc ứng xử và nghiệp vụ:
       estimatedMarketValue = 30000000;
     } else if (titleLower.includes('laptop') || titleLower.includes('gaming') || titleLower.includes('asus rog') || titleLower.includes('thinkpad')) {
       estimatedMarketValue = 16000000;
+    } else if (
+      titleLower.includes('cốc giữ nhiệt') ||
+      titleLower.includes('bình giữ nhiệt') ||
+      titleLower.includes('ly giữ nhiệt') ||
+      titleLower.includes('fanhouse') ||
+      titleLower.includes('lock&lock') ||
+      titleLower.includes('lock and lock') ||
+      titleLower.includes('elmich') ||
+      titleLower.includes('cốc nước') ||
+      titleLower.includes('bình nước')
+    ) {
+      if (titleLower.includes('stanley') || titleLower.includes('yeti')) {
+        estimatedMarketValue = 550000;
+      } else {
+        estimatedMarketValue = 160000; // Fanhouse, Lock&Lock tumbler ~160.000 VNĐ
+      }
+    } else if (
+      titleLower.includes('sách') ||
+      titleLower.includes('truyện') ||
+      titleLower.includes('manga') ||
+      titleLower.includes('comic') ||
+      titleLower.includes('doraemon') ||
+      titleLower.includes('conan') ||
+      titleLower.includes('one piece') ||
+      titleLower.includes('tiểu thuyết')
+    ) {
+      if (titleLower.includes('trọn bộ') || titleLower.includes('full bộ') || titleLower.includes('boxset')) {
+        estimatedMarketValue = 450000;
+      } else {
+        estimatedMarketValue = 65000;
+      }
+    } else if (
+      titleLower.includes('ốp lưng') ||
+      titleLower.includes('cường lực') ||
+      titleLower.includes('cáp sạc') ||
+      titleLower.includes('dây sạc') ||
+      titleLower.includes('lót chuột') ||
+      titleLower.includes('giá đỡ')
+    ) {
+      estimatedMarketValue = 85000;
+    } else if (
+      titleLower.includes('áo thun') ||
+      titleLower.includes('áo phông') ||
+      titleLower.includes('quần short') ||
+      titleLower.includes('mũ') ||
+      titleLower.includes('nón')
+    ) {
+      estimatedMarketValue = 150000;
+    } else if (
+      titleLower.includes('giày') ||
+      titleLower.includes('sneaker') ||
+      titleLower.includes('nike') ||
+      titleLower.includes('adidas') ||
+      titleLower.includes('jordan')
+    ) {
+      estimatedMarketValue = titleLower.includes('jordan') || titleLower.includes('yeezy') ? 2500000 : 850000;
+    } else if (
+      titleLower.includes('tai nghe') ||
+      titleLower.includes('airpod') ||
+      titleLower.includes('headphone')
+    ) {
+      if (titleLower.includes('airpod pro') || titleLower.includes('sony wh')) {
+        estimatedMarketValue = 3200000;
+      } else if (titleLower.includes('airpod')) {
+        estimatedMarketValue = 1800000;
+      } else {
+        estimatedMarketValue = 250000;
+      }
+    } else if (
+      titleLower.includes('ấm siêu tốc') ||
+      titleLower.includes('máy sấy') ||
+      titleLower.includes('quạt mini') ||
+      titleLower.includes('bàn là') ||
+      titleLower.includes('đèn bàn')
+    ) {
+      estimatedMarketValue = 220000;
     }
 
-    const calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 100000) * 100000;
-    const calculatedIncrement = estimatedMarketValue >= 15000000 ? 200000 : (estimatedMarketValue >= 5000000 ? 100000 : 50000);
+    // Dynamic starting price & bid increment based on price range
+    let calculatedStarting = 0;
+    let calculatedIncrement = 10000;
+
+    if (estimatedMarketValue <= 300000) {
+      calculatedStarting = Math.max(20000, Math.round((estimatedMarketValue * 0.45) / 10000) * 10000);
+      calculatedIncrement = 10000;
+    } else if (estimatedMarketValue <= 1000000) {
+      calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 20000) * 20000;
+      calculatedIncrement = 20000;
+    } else if (estimatedMarketValue <= 5000000) {
+      calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 50000) * 50000;
+      calculatedIncrement = 50000;
+    } else if (estimatedMarketValue <= 15000000) {
+      calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 100000) * 100000;
+      calculatedIncrement = 100000;
+    } else {
+      calculatedStarting = Math.round((estimatedMarketValue * 0.45) / 100000) * 100000;
+      calculatedIncrement = 200000;
+    }
 
     // Rich dynamic description builder for Fallback (when AI SDK is offline)
     let dynamicDescription = '';
@@ -547,23 +641,28 @@ THÔNG TIN SẢN PHẨM TỪ NGƯỜI BÁN:
 - Tên sản phẩm: ${title}
 - Phân loại / Danh mục: ${category || 'Đồ cũ cá nhân'}
 - Tình trạng / Độ mới: ${condition || 'Đã qua sử dụng'}
+- Giá thị trường tham chiếu tại Việt Nam (Benchmark): ${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ
 ${imagePart ? '- Thị giác máy tính (Multimodal Vision): Đã đính kèm ảnh sản phẩm thực tế để bạn soi chi tiết màu sắc, ngoại hình, tem nhãn, phụ kiện.' : '- Không có ảnh đính kèm.'}
 ${historicalContext ? `- Dữ liệu giá quá khứ trên sàn: ${historicalContext}` : ''}
 
 NHIỆM VỤ 1: ĐỊNH GIÁ THỊ TRƯỜNG THỰC TẾ TẠI VIỆT NAM (MARKET VALUATION)
-Dựa vào kho tri thức khổng lồ và dữ liệu giao dịch đồ cũ thực tế tại thị trường Việt Nam (Chợ Tốt, Shopee, sàn TMĐT, diễn đàn công nghệ, hội nhóm sưu tầm):
-- Tự động nhận diện chính xác thương hiệu, phân khúc, đời máy/năm sản xuất, phiên bản dung lượng/cấu hình hoặc độ hiếm của sản phẩm bất kể thuộc ngành hàng nào (Công nghệ, Điện thoại, Laptop, Máy ảnh, Xe cộ, Đồng hồ, Thời trang hàng hiệu, Nhạc cụ, Đồ gia dụng, Đồ sưu tầm...).
-- "suggestedBuyNowPrice" (Giá mua ngay): Ước tính sát giá thị trường đồ cũ chuẩn xác tại Việt Nam tương ứng với độ mới/tình trạng sản phẩm.
-- "suggestedStartingPrice" (Giá khởi điểm): Đặt mức giá hấp dẫn bằng khoảng 40% - 50% giá thị trường thực tế để kích thích nhiều người cùng tham gia đặt giá sôi nổi.
-- "suggestedBidIncrement" (Bước giá): Đề xuất bước giá hợp lý (ví dụ: 50.000đ, 100.000đ, 200.000đ hoặc 500.000đ đối với sản phẩm giá trị cao).
+Dựa vào mức giá tham chiếu (${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ) và thông tin thực tế của sản phẩm:
+- "suggestedBuyNowPrice" (Giá mua ngay): Định giá sát mức thị trường thực tế tại Việt Nam dựa trên độ mới và thương hiệu (dao động quanh mức tham chiếu ${estimatedMarketValue.toLocaleString('vi-VN')} VNĐ, ±20%).
+  + LƯU Ý BẮT BUỘC: Không tự ý đẩy giá các mặt hàng phổ thông / cốc bình giữ nhiệt / phụ kiện lên hàng triệu đồng!
+- "suggestedStartingPrice" (Giá khởi điểm): Đặt mức hấp dẫn bằng khoảng 40% - 50% của giá mua ngay để kích thích đấu giá sôi nổi.
+- "suggestedBidIncrement" (Bước giá): Đề xuất bước giá hợp lý:
+  + Dưới 300.000 VNĐ: Bước giá 10.000 VNĐ
+  + 300.000 - 1.000.000 VNĐ: Bước giá 20.000 - 50.000 VNĐ
+  + 1.000.000 - 5.000.000 VNĐ: Bước giá 50.000 - 100.000 VNĐ
+  + Trên 10.000.000 VNĐ: Bước giá 200.000 - 500.000 VNĐ.
 - "suggestedLayout": Chọn "full_banner" (đối với hàng công nghệ/xa xỉ cao cấp >10 triệu), "grid_gallery" (đối với thời trang, phụ kiện, bộ sưu tập), hoặc "standard" (đối với đồ thông dụng).
 
 NHIỆM VỤ 2: SÁNG TẠO BÀI MÔ TẢ ĐỘC ĐÁO, HẤP DẪN & TỰ NHIÊN (DYNAMIC COPYWRITING)
 Hãy viết một bài mô tả bán hàng cực kỳ lôi cuốn, văn phong tự nhiên, chân thật và thuyết phục (khoảng 150 - 250 từ).
 LƯU Ý ĐẶC BIỆT VỀ PHONG CÁCH:
-- KHÔNG dùng một khuôn mẫu cứng nhắc lặp đi lặp lại. Hãy linh hoạt biến tấu tiêu đề con, câu từ và biểu cảm emoji cho phù hợp với từng loại sản phẩm (Đồ công nghệ thì nhấn mạnh hiệu năng/pin/màn hình; Thời trang/đồng hồ thì nhấn mạnh phong cách/độ mới/chính hãng; Đồ gia dụng/xe thì nhấn mạnh độ bền/sự tiện lợi).
+- KHÔNG dùng một khuôn mẫu cứng nhắc lặp đi lặp lại. Hãy linh hoạt biến tấu tiêu đề con, câu từ và biểu cảm emoji cho phù hợp với từng loại sản phẩm.
 - Tuyệt đối KHÔNG đánh số thứ tự (1., 2., 3., 1), 2)). Hãy dùng các dấu gạch đầu dòng (-) sạch sẽ và emoji sinh động.
-- Luôn lồng ghép tinh tế và tự nhiên cam kết kiểm tra hàng và bảo hộ giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazzar để người mua an tâm chốt giá.
+- Luôn lồng ghép tinh tế cam kết kiểm tra hàng và bảo hộ giao dịch an toàn 100% qua Ví ký quỹ Escrow Bazzar để người mua an tâm chốt giá.
 - Kết thúc bằng một lời kêu gọi đặt giá/đấu giá hào hứng và duyên dáng.
 
 YÊU CẦU ĐẦU RA:
@@ -587,8 +686,8 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
           const model = this.genAI.getGenerativeModel({
             model: modelName,
             generationConfig: {
-              temperature: 0.85,
-              topP: 0.95,
+              temperature: 0.3,
+              topP: 0.9,
             },
           });
           const contentParts: any[] = [prompt];
@@ -599,9 +698,22 @@ Trả về duy nhất định dạng JSON hợp lệ (không chứa markdown \`\
           const jsonMatch = text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            const startPrice = Number(parsed.suggestedStartingPrice);
-            const buyNowPrice = Number(parsed.suggestedBuyNowPrice);
-            const increment = Number(parsed.suggestedBidIncrement);
+            let startPrice = Number(parsed.suggestedStartingPrice);
+            let buyNowPrice = Number(parsed.suggestedBuyNowPrice);
+            let increment = Number(parsed.suggestedBidIncrement);
+
+            // Guardrail against hallucinated prices deviating too far from Vietnamese market value
+            if (estimatedMarketValue > 0) {
+              if (buyNowPrice > estimatedMarketValue * 2.5 || buyNowPrice <= 0) {
+                buyNowPrice = estimatedMarketValue;
+              }
+              if (startPrice > buyNowPrice * 0.8 || startPrice <= 0) {
+                startPrice = Math.max(20000, Math.round((buyNowPrice * 0.45) / 10000) * 10000);
+              }
+              if (!increment || increment <= 0) {
+                increment = buyNowPrice <= 300000 ? 10000 : buyNowPrice <= 1000000 ? 20000 : 50000;
+              }
+            }
 
             // Clean up any unwanted leading 1. 2. 3. numbers if AI generated them
             let cleanDescription = (parsed.description || fallbackResponse.description)
