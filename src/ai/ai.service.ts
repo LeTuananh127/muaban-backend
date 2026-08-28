@@ -219,8 +219,12 @@ export class AiService {
 
       const feePercent = getPlatformFeePercent();
       const systemInstruction = `
-Bạn là "Muabandocuui AI Assistant" (Trợ lý AI của sàn đấu giá đồ cũ Bazaar).
-Nhiệm vụ của bạn là giải đáp thắc mắc của người dùng về cách bán và mua đồ cũ bằng đấu giá, hỗ trợ tìm kiếm sản phẩm đồ cũ và giải thích quy trình ký quỹ Escrow một cách ngắn gọn, súc tích bằng Tiếng Việt.
+Bạn là "Bazzar AI Assistant" (Trợ lý Trí tuệ Nhân tạo thông minh của sàn đấu giá đồ cũ trực tuyến Bazzar).
+Nhiệm vụ của bạn là:
+1. Giải đáp mọi thắc mắc của người dùng về cách bán và mua đồ cũ bằng hình thức đấu giá trực tuyến.
+2. Hỗ trợ tìm kiếm, tra cứu và tư vấn sản phẩm đồ cũ phù hợp theo ngân sách và nhu cầu.
+3. Giải thích chi tiết quy trình ký quỹ ví Escrow, quy tắc chống bắn tỉa Anti-sniping, chính sách bảo vệ người dùng một cách ngắn gọn, thân thiện và súc tích bằng Tiếng Việt.
+4. Giới thiệu về thông tin Đồ án & Tác giả khi được hỏi: Sàn đấu giá đồ cũ Bazzar được phát triển bởi sinh viên **Lê Tuấn Anh** (MSV: **22010165**), Lớp **K16-CNTT2**, Trường Đại học Phenikaa.
 
 Dưới đây là thông tin thời gian thực về sản phẩm và hệ thống để bạn tham khảo khi trả lời:
 - Các danh mục đồ cũ trên hệ thống: ${categoriesStr || 'Chưa có danh mục nào'}
@@ -274,19 +278,18 @@ Quy tắc ứng xử và nghiệp vụ:
       }
 
       // Smart Fallback Assistant Response if Gemini API Key quota is exceeded or unreachable
-      if (['chủ', 'tên gì', 'ai tạo', 'tác giả', 'sinh viên', 'người tạo', 'tuấn anh', 'lê tuấn anh', 'phenikaa'].some((w) => lowerMsg.includes(w))) {
+      if (['chủ', 'tên gì', 'ai tạo', 'tác giả', 'sinh viên', 'người tạo', 'tuấn anh', 'lê tuấn anh', 'phenikaa', 'msv', 'mssv'].some((w) => lowerMsg.includes(w))) {
         return (
           '🎓 **Thông tin Tác giả & Đồ án Tốt nghiệp**:\n\n' +
-          '• **Hệ thống**: **Bazaar** — Sàn Mua Bán & Đấu Giá Đồ Cũ Trực Tuyến.\n' +
-          '• **Sinh viên thực hiện**: **Lê Tuấn Anh** (MSSV: 21012046) — Lớp K15-CNTT3.\n' +
-          '• **Giảng viên hướng dẫn**: **TS. Nguyễn Lệ Thu**.\n' +
+          '• **Hệ thống**: **Bazzar** — Sàn Mua Bán & Đấu Giá Đồ Cũ Trực Tuyến.\n' +
+          '• **Sinh viên thực hiện**: **Lê Tuấn Anh** (MSV: **22010165**) — Lớp **K16-CNTT2**.\n' +
           '• **Trường**: Đại học Phenikaa — Khoa Công nghệ Thông tin.\n\n' +
           'Ứng dụng được xây dựng với mục tiêu mang đến nền tảng Re-commerce đấu giá đồ cũ minh bạch, an toàn qua Ví ký quỹ Escrow và Trợ lý AI!'
         );
       } else if (['hello', 'hi', 'chào', 'xin chào', 'chao', 'hey'].some((w) => lowerMsg.includes(w))) {
         return (
-          '👋 **Chào bạn! Trợ lý AI Bazaar rất vui được hỗ trợ bạn.**\n\n' +
-          'Tôi có thể giúp bạn hướng dẫn đăng bán đồ cũ, quy trình đặt giá đấu giá, cơ chế ký quỹ ví Escrow, hoặc tìm kiếm các sản phẩm hot đang đấu giá trên sàn. Bạn cần hỗ trợ thông tin gì ạ?'
+          '👋 **Chào bạn! Trợ lý AI Bazzar rất vui được hỗ trợ bạn.**\n\n' +
+          'Tôi có thể giúp bạn tư vấn sản phẩm, hướng dẫn đăng bán đồ cũ, quy trình đặt giá đấu giá, cơ chế ký quỹ ví Escrow, hoặc tìm kiếm các sản phẩm hot đang đấu giá trên sàn. Bạn cần hỗ trợ thông tin gì ạ?'
         );
       } else if (
         matchedCategoryInfo ||
