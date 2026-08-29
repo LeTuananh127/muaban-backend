@@ -214,18 +214,66 @@ export class TasksService {
             this.logger.warn(`User ${order.buyer.email} automatically BANNED for 3+ unpaid order strikes.`);
           }
 
-          // 4. Tịch thu / Giải phóng WalletHold ký quỹ (nếu có)
-          if (order.walletHolds && order.walletHolds.length > 0) {
-            for (const hold of order.walletHolds) {
-              await tx.walletHold.update({
-                where: { id: hold.id },
-                data: {
-                  releasedAt: new Date(),
-                  releasedBy: 'SYSTEM_UNPAID_PENALTY',
-                  reason: 'Tịch thu cọc do quá hạn 48h không thanh toán đơn hàng',
-                },
-              });
+          // 4. Tịch thu / Giải phóng WalletHold ký quỹ và chuyển tiền bồi thường cho Người bán
+          let totalForfeitedDeposit = 0;
+          const holds = await tx.walletHold.findMany({
+            where: {
+              wallet: { userId: order.buyerId },
+              releasedAt: null,
+              OR: [
+                { orderId: order.id },
+                { reason: { contains: `[auction_${order.auctionId}]` } },
+                { reason: { contains: order.auctionId } },
+              ],
+            },
+            include: { wallet: true },
+          });
+
+          for (const hold of holds) {
+            totalForfeitedDeposit += hold.amount;
+            // 4a. Trừ tiền cọc khỏi ví Người mua
+            await tx.wallet.update({
+              where: { id: hold.walletId },
+              data: { balance: { decrement: hold.amount } },
+            });
+            // 4b. Ghi sổ cái DEBIT cho Người mua
+            await tx.walletTransaction.create({
+              data: {
+                walletId: hold.walletId,
+                type: 'DEBIT',
+                amount: hold.amount,
+                reference: `Tịch thu cọc do không thanh toán đơn hàng #${order.id.slice(0, 8)} (order:${order.id})`,
+              },
+            });
+            // 4c. Đánh dấu giải phóng hold
+            await tx.walletHold.update({
+              where: { id: hold.id },
+              data: {
+                releasedAt: new Date(),
+                releasedBy: 'SYSTEM_UNPAID_FORFEIT',
+                reason: `Tịch thu cọc chuyển bồi thường cho Người bán đơn hàng #${order.id.slice(0, 8)}`,
+              },
+            });
+          }
+
+          // 4d. Cộng tiền bồi thường cọc vào ví Người bán (nếu có tiền cọc)
+          if (totalForfeitedDeposit > 0) {
+            let sellerWallet = await tx.wallet.findUnique({ where: { userId: order.sellerId } });
+            if (!sellerWallet) {
+              sellerWallet = await tx.wallet.create({ data: { userId: order.sellerId, balance: 0 } });
             }
+            await tx.wallet.update({
+              where: { id: sellerWallet.id },
+              data: { balance: { increment: totalForfeitedDeposit } },
+            });
+            await tx.walletTransaction.create({
+              data: {
+                walletId: sellerWallet.id,
+                type: 'CREDIT',
+                amount: totalForfeitedDeposit,
+                reference: `Bồi thường cọc do người mua bùng kèo đơn hàng #${order.id.slice(0, 8)} (order:${order.id})`,
+              },
+            });
           }
         });
 
@@ -235,14 +283,14 @@ export class TasksService {
 
         await this.notificationsService.createNotification(order.buyerId, {
           title: '⚠️ Đơn hàng bị hủy & Trừ 20 Điểm Uy Tín Người Mua!',
-          content: `Đơn hàng #${order.id.slice(0, 8)} cho sản phẩm "${order.auction.product.title}" đã bị hủy tự động do quá hạn 48 giờ không thanh toán. Bạn bị trừ 20 điểm Uy Tín Người Mua (Điểm uy tín hiện tại: ${currentScore}/100).`,
+          content: `Đơn hàng #${order.id.slice(0, 8)} cho sản phẩm "${order.auction.product.title}" đã bị hủy tự động do quá hạn 48 giờ không thanh toán. Tiền cọc (nếu có) đã bị tịch thu bồi thường cho người bán và bạn bị trừ 20 điểm Uy Tín (Hiện tại: ${currentScore}/100).`,
           type: 'ORDER_CANCELLED_UNPAID',
           referenceId: order.id,
         });
 
         await this.notificationsService.createNotification(order.sellerId, {
-          title: 'Đơn hàng đã tự động hủy',
-          content: `Đơn hàng cho sản phẩm "${order.auction.product.title}" đã được hệ thống hủy tự động do người mua không hoàn tất thanh toán sau 48 giờ.`,
+          title: 'Đơn hàng tự động hủy & Nhận bồi thường cọc',
+          content: `Đơn hàng cho sản phẩm "${order.auction.product.title}" đã được hệ thống hủy do người mua không thanh toán sau 48h. Toàn bộ tiền cọc của người mua (nếu có) đã được chuyển bồi thường vào Ví của bạn!`,
           type: 'ORDER_CANCELLED_UNPAID',
           referenceId: order.id,
         });

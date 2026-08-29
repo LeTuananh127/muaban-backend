@@ -211,13 +211,74 @@ export class OrdersService {
     }
 
     if (normalizedStatus === OrderStatus.CANCELLED) {
-      // Refund escrow when order is cancelled / refused
+      // If order was already paid, refund escrow
       const escrowId = order.escrow?.id || order.escrowId;
       if (escrowId) {
         try {
           await this.escrowService.refundEscrow(escrowId);
         } catch (error) {
           console.log('Could not refund escrow:', error.message);
+        }
+      }
+
+      // If unpaid PENDING order is cancelled by buyer: Forfeit deposit hold directly to seller as compensation
+      if (order.status === OrderStatus.PENDING) {
+        const holds = await this.prisma.walletHold.findMany({
+          where: {
+            wallet: { userId: order.buyerId },
+            releasedAt: null,
+            OR: [
+              { orderId: order.id },
+              { reason: { contains: `[auction_${order.auctionId}]` } },
+              { reason: { contains: order.auctionId } },
+            ],
+          },
+        });
+
+        let totalForfeited = 0;
+        for (const hold of holds) {
+          totalForfeited += hold.amount;
+          // Deduct from buyer
+          await this.prisma.wallet.update({
+            where: { id: hold.walletId },
+            data: { balance: { decrement: hold.amount } },
+          });
+          await this.prisma.walletTransaction.create({
+            data: {
+              walletId: hold.walletId,
+              type: 'DEBIT',
+              amount: hold.amount,
+              reference: `Tịch thu cọc do hủy đơn hàng #${order.id.slice(0, 8)} (order:${order.id})`,
+            },
+          });
+          await this.prisma.walletHold.update({
+            where: { id: hold.id },
+            data: {
+              releasedAt: new Date(),
+              releasedBy: 'BUYER_CANCEL_FORFEIT',
+              reason: `Tịch thu cọc chuyển bồi thường cho Người bán đơn hàng #${order.id.slice(0, 8)}`,
+            },
+          });
+        }
+
+        // Credit directly to seller
+        if (totalForfeited > 0) {
+          let sellerWallet = await this.prisma.wallet.findUnique({ where: { userId: order.sellerId } });
+          if (!sellerWallet) {
+            sellerWallet = await this.prisma.wallet.create({ data: { userId: order.sellerId, balance: 0 } });
+          }
+          await this.prisma.wallet.update({
+            where: { id: sellerWallet.id },
+            data: { balance: { increment: totalForfeited } },
+          });
+          await this.prisma.walletTransaction.create({
+            data: {
+              walletId: sellerWallet.id,
+              type: 'CREDIT',
+              amount: totalForfeited,
+              reference: `Bồi thường cọc do người mua hủy đơn hàng #${order.id.slice(0, 8)} (order:${order.id})`,
+            },
+          });
         }
       }
     }
