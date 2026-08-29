@@ -132,30 +132,70 @@ export class AiService {
         .split(/\s+/)
         .filter((w) => w.length > 1 && !stopWords.includes(w));
 
-      // 3. Fetch ALL currently active auctions from database without omission
-      const allActiveAuctions = await this.prisma.auction.findMany({
-        where: {
-          status: 'ACTIVE',
-          endTime: { gt: new Date() },
+      // 3. Query auctions directly by matched category (or fallback to active auctions)
+      const auctionInclude = {
+        product: {
+          include: {
+            category: true,
+            owner: { select: { name: true } },
+          },
         },
-        include: {
-          product: {
-            include: {
-              category: true,
-              owner: { select: { name: true } },
+        bids: { select: { id: true } },
+      };
+
+      let targetedAuctions: any[] = [];
+
+      if (matchedCategorySlug) {
+        // Query ALL active auctions in the detected category
+        targetedAuctions = await this.prisma.auction.findMany({
+          where: {
+            status: 'ACTIVE',
+            endTime: { gt: new Date() },
+            product: {
+              category: { slug: matchedCategorySlug },
             },
           },
-          bids: { select: { id: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+          include: auctionInclude,
+          orderBy: { createdAt: 'desc' },
+        });
+      } else if (searchTokens.length > 0) {
+        // Query by search tokens
+        targetedAuctions = await this.prisma.auction.findMany({
+          where: {
+            status: 'ACTIVE',
+            endTime: { gt: new Date() },
+            OR: searchTokens.map((token) => ({
+              OR: [
+                { product: { title: { contains: token, mode: 'insensitive' } } },
+                { product: { description: { contains: token, mode: 'insensitive' } } },
+                { product: { category: { name: { contains: token, mode: 'insensitive' } } } },
+              ],
+            })),
+          },
+          include: auctionInclude,
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+        });
+      } else {
+        // Default top active auctions
+        targetedAuctions = await this.prisma.auction.findMany({
+          where: {
+            status: 'ACTIVE',
+            endTime: { gt: new Date() },
+          },
+          include: auctionInclude,
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+        });
+      }
 
       const categoriesStr = categories.map((c) => c.name).join(', ');
-      const auctionsStr = allActiveAuctions
+      const categoryContextName = matchedCategoryInfo ? matchedCategoryInfo.name : 'Đang diễn ra';
+      const auctionsStr = targetedAuctions
         .map((a) => {
           const currentPrice = Number(a.currentPrice || a.startingPrice);
           const bidCount = a.bids ? a.bids.length : 0;
-          return `- ID: ${a.id} | Tiêu đề: ${a.product.title} | Danh mục: ${a.product.category?.name || 'Khác'} | Giá hiện tại: ${currentPrice.toLocaleString('vi-VN')}đ | ${bidCount} lượt bid | Link: [${a.product.title}](/auction/${a.id})`;
+          return `- [${a.product.title}](/auction/${a.id}) | Danh mục: ${a.product.category?.name || 'Khác'} | Giá hiện tại: ${currentPrice.toLocaleString('vi-VN')}đ | ${bidCount} lượt đấu giá | Kết thúc: ${new Date(a.endTime).toLocaleString('vi-VN')}`;
         })
         .join('\n');
 
@@ -168,10 +208,8 @@ Nhiệm vụ của bạn là:
 3. Giải thích chi tiết quy trình ký quỹ ví Escrow, quy tắc chống bắn tỉa Anti-sniping, chính sách bảo vệ người dùng một cách ngắn gọn, thân thiện và súc tích bằng Tiếng Việt.
 4. Giới thiệu về thông tin Đồ án & Tác giả khi được hỏi: Sàn đấu giá đồ cũ Bazzar được phát triển bởi sinh viên **Lê Tuấn Anh** (MSV: **22010165**), Lớp **K16-CNTT2**, Trường Đại học Phenikaa.
 
-Dưới đây là TOÀN BỘ danh sách các phiên đấu giá đang diễn ra trên sàn (thời gian thực):
-- Các danh mục: ${categoriesStr || 'Chưa có danh mục nào'}
-- Danh sách tất cả các sản phẩm đang đấu giá:
-${auctionsStr || 'Hiện tại chưa có phiên đấu giá nào đang diễn ra.'}
+Dưới đây là danh sách các sản phẩm đấu giá (${categoryContextName}):
+${auctionsStr || 'Hiện tại chưa có phiên đấu giá nào trong danh mục này.'}
 
 QUY TẮC LỌC & PHÂN LOẠI SẢN PHẨM CHÍNH XÁC 100% (BẮT BUỘC):
 1. **LẤY HẾT, KHÔNG BỎ SÓT**: Khi người dùng hỏi về một loại sản phẩm cụ thể (ví dụ: "giày", "điện thoại", "tai nghe", "laptop", "túi xách", "kính", "áo", "đồng hồ"...), bạn PHẢI quét TOÀN BỘ danh sách trên và liệt kê ĐẦY ĐỦ 100% TẤT CẢ các sản phẩm thuộc đúng chủng loại đó. Tuyệt đối không được bỏ sót bất kỳ sản phẩm nào!
@@ -242,11 +280,11 @@ QUY TẮC LỌC & PHÂN LOẠI SẢN PHẨM CHÍNH XÁC 100% (BẮT BUỘC):
         matchedCategoryInfo ||
         ['gợi ý', 'sản phẩm', 'đang bán', 'đang đấu', 'có gì', 'gợi ý sản phẩm', 'tìm', 'đồ', 'cơ mà', 'giày', 'điện thoại'].some((w) => lowerMsg.includes(w))
       ) {
-        if (allActiveAuctions.length > 0) {
+        if (targetedAuctions.length > 0) {
           const categoryTitle = matchedCategoryInfo
             ? `${matchedCategoryInfo.icon} Danh sách sản phẩm **${matchedCategoryInfo.name}**`
             : '🔥 Gợi ý các sản phẩm đang Đấu giá Nổi bật';
-          const listStr = allActiveAuctions
+          const listStr = targetedAuctions
             .slice(0, 10)
             .map((a) => {
               const currentPrice = Number(a.currentPrice || a.startingPrice);
