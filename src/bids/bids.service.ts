@@ -67,13 +67,25 @@ export class BidsService {
     const shouldExtend = triggerMs > 0 && timeRemaining > 0 && timeRemaining < triggerMs;
     const newEndTime = shouldExtend ? new Date(now.getTime() + durationMs) : auction.endTime;
 
-    if (amount < auction.currentPrice + auction.bidIncrement) {
-      throw new BadRequestException(`Bid must be at least ${auction.currentPrice + auction.bidIncrement}`);
+    // Price Ceiling Check: Mức đấu giá trần là mức Mua ngay (buyNowPrice)
+    let finalAmount = amount;
+    if (auction.buyNowPrice && auction.buyNowPrice > 0) {
+      if (finalAmount > auction.buyNowPrice) {
+        finalAmount = auction.buyNowPrice;
+      }
+    }
+
+    const minRequiredBid = auction.buyNowPrice && auction.buyNowPrice > auction.currentPrice
+      ? Math.min(auction.currentPrice + auction.bidIncrement, auction.buyNowPrice)
+      : auction.currentPrice + auction.bidIncrement;
+
+    if (finalAmount < minRequiredBid) {
+      throw new BadRequestException(`Giá đặt phải tối thiểu là ${minRequiredBid.toLocaleString('vi-VN')} đ`);
     }
 
     // Deposit percent dynamically configured by Seller (Default: 0%)
     const pct = (auction as any).depositPercent ?? 0;
-    const depositAmount = pct > 0 ? Math.round(amount * (pct / 100)) : 0;
+    const depositAmount = pct > 0 ? Math.round(finalAmount * (pct / 100)) : 0;
 
     // Check wallet balance
     let wallet = await this.prisma.wallet.findUnique({ where: { userId } });
@@ -107,7 +119,7 @@ export class BidsService {
           data: {
             releasedAt: new Date(),
             releasedBy: 'OUTBID_SYSTEM',
-            reason: `Hoàn cọc do có người đặt giá cao hơn (${amount.toLocaleString('vi-VN')} đ)`,
+            reason: `Hoàn cọc do có người đặt giá cao hơn (${finalAmount.toLocaleString('vi-VN')} đ)`,
           },
         });
       }
@@ -129,7 +141,7 @@ export class BidsService {
         data: {
           auctionId,
           userId,
-          amount,
+          amount: finalAmount,
         },
         include: {
           user: {
@@ -142,14 +154,14 @@ export class BidsService {
       const updatedAuction = await tx.auction.update({
         where: { id: auctionId },
         data: {
-          currentPrice: amount,
+          currentPrice: finalAmount,
           currentWinnerId: userId,
           ...(shouldExtend ? { endTime: newEndTime } : {}),
         },
       });
 
-      // If buy now price is met, end the auction immediately and create the order
-      if (updatedAuction.buyNowPrice && amount >= updatedAuction.buyNowPrice) {
+      // If buy now price ceiling is met, end the auction immediately and create the order
+      if (updatedAuction.buyNowPrice && finalAmount >= updatedAuction.buyNowPrice) {
         await tx.auction.update({
           where: { id: auctionId },
           data: { status: 'ENDED' },
@@ -166,18 +178,20 @@ export class BidsService {
             auctionId,
             buyerId: userId,
             sellerId: auction.product.ownerId,
-            totalAmount: amount + (auction.shippingCost || 0),
+            totalAmount: finalAmount + (auction.shippingCost || 0),
             status: 'PENDING',
           },
         });
 
-        await tx.walletHold.update({
-          where: { id: newHold.id },
-          data: { orderId: order.id },
-        });
+        if (newHold) {
+          await tx.walletHold.update({
+            where: { id: newHold.id },
+            data: { orderId: order.id },
+          });
+        }
       }
 
-      return { auctionId, newBid, currentPrice: amount, status: updatedAuction.status, endTime: updatedAuction.endTime };
+      return { auctionId, newBid, currentPrice: finalAmount, status: (updatedAuction.buyNowPrice && finalAmount >= updatedAuction.buyNowPrice) ? 'ENDED' : updatedAuction.status, endTime: updatedAuction.endTime };
     });
 
     // Broadcast the real-time update
@@ -315,8 +329,18 @@ export class BidsService {
       throw new BadRequestException('Auction has ended');
     }
 
-    if (maxAmount < auction.currentPrice + auction.bidIncrement) {
-      throw new BadRequestException(`Max amount must be at least ${auction.currentPrice + auction.bidIncrement}`);
+    // Price Ceiling for Auto-bid: Không được vượt quá mức Mua ngay (buyNowPrice)
+    let finalMaxAmount = maxAmount;
+    if (auction.buyNowPrice && auction.buyNowPrice > 0 && finalMaxAmount > auction.buyNowPrice) {
+      finalMaxAmount = auction.buyNowPrice;
+    }
+
+    const minRequiredAutoBid = auction.buyNowPrice && auction.buyNowPrice > auction.currentPrice
+      ? Math.min(auction.currentPrice + auction.bidIncrement, auction.buyNowPrice)
+      : auction.currentPrice + auction.bidIncrement;
+
+    if (finalMaxAmount < minRequiredAutoBid) {
+      throw new BadRequestException(`Giá tối đa Auto-bid phải ít nhất là ${minRequiredAutoBid.toLocaleString('vi-VN')} đ`);
     }
 
     // Check wallet balance
@@ -330,8 +354,8 @@ export class BidsService {
     const held = holds.reduce((sum, hold) => sum + hold.amount, 0);
     const available = wallet.balance - held;
 
-    if (available < maxAmount) {
-      throw new BadRequestException(`Số dư ví không đủ. Bạn cần có tối thiểu ${maxAmount.toLocaleString('vi-VN')} đ trong ví.`);
+    if (available < finalMaxAmount) {
+      throw new BadRequestException(`Số dư ví không đủ. Bạn cần có tối thiểu ${finalMaxAmount.toLocaleString('vi-VN')} đ trong ví.`);
     }
 
     const autoBid = await this.prisma.autoBid.upsert({
@@ -342,12 +366,12 @@ export class BidsService {
         },
       },
       update: {
-        maxAmount,
+        maxAmount: finalMaxAmount,
       },
       create: {
         userId,
         auctionId,
-        maxAmount,
+        maxAmount: finalMaxAmount,
       },
     });
 
@@ -395,9 +419,19 @@ export class BidsService {
       }
 
       nextBidAmount = Math.min(nextBidAmount, highestAutoBid.maxAmount);
+
+      // Price ceiling: Mức đấu giá trần là mức Mua ngay (buyNowPrice)
+      if (auction.buyNowPrice && auction.buyNowPrice > 0 && nextBidAmount > auction.buyNowPrice) {
+        nextBidAmount = auction.buyNowPrice;
+      }
+
       winnerId = highestAutoBid.userId;
 
-      if (nextBidAmount >= currentPrice + increment) {
+      const minRequiredProxyBid = auction.buyNowPrice && auction.buyNowPrice > currentPrice
+        ? Math.min(currentPrice + increment, auction.buyNowPrice)
+        : currentPrice + increment;
+
+      if (nextBidAmount >= minRequiredProxyBid) {
         const newBidResult = await this.prisma.$transaction(async (tx) => {
           const depositAmount = Math.round(nextBidAmount * 0.10);
           // Check wallet balance
@@ -434,7 +468,7 @@ export class BidsService {
           }
 
           // Create new deposit hold for proxy bid winner
-          await tx.walletHold.create({
+          const proxyHold = await tx.walletHold.create({
             data: {
               walletId: wallet.id,
               amount: depositAmount,
@@ -470,29 +504,79 @@ export class BidsService {
             },
           });
 
-          return { newBid, currentPrice: nextBidAmount, status: updatedAuction.status, endTime: updatedAuction.endTime };
+          // If buy now price ceiling is met, end the auction immediately
+          if (updatedAuction.buyNowPrice && nextBidAmount >= updatedAuction.buyNowPrice) {
+            await tx.auction.update({
+              where: { id: auctionId },
+              data: { status: 'ENDED' },
+            });
+
+            await tx.product.update({
+              where: { id: updatedAuction.productId },
+              data: { status: 'SOLD' },
+            });
+
+            const order = await tx.order.create({
+              data: {
+                auctionId,
+                buyerId: winnerId,
+                sellerId: auction.product.ownerId,
+                totalAmount: nextBidAmount + (auction.shippingCost || 0),
+                status: 'PENDING',
+              },
+            });
+
+            if (proxyHold) {
+              await tx.walletHold.update({
+                where: { id: proxyHold.id },
+                data: { orderId: order.id },
+              });
+            }
+          }
+
+          return { newBid, currentPrice: nextBidAmount, status: (updatedAuction.buyNowPrice && nextBidAmount >= updatedAuction.buyNowPrice) ? 'ENDED' : updatedAuction.status, endTime: updatedAuction.endTime };
         });
 
         if (newBidResult) {
           // Broadcast to clients
           this.bidsGateway.broadcastNewBid(auctionId, newBidResult);
 
-          // Notify outbid user
-          if (currentWinnerId && currentWinnerId !== winnerId) {
+          if (newBidResult.status === 'ENDED') {
+            // Notify winner & seller
             try {
-              await this.notificationsService.createNotification(currentWinnerId, {
-                title: 'Bạn đã bị outbid!',
-                content: `Hệ thống tự động đấu giá đã outbid bạn ở sản phẩm "${auction.product.title}". Giá cao nhất hiện tại là ${nextBidAmount.toLocaleString('vi-VN')} đ`,
-                type: 'OUTBID',
+              await this.notificationsService.createNotification(winnerId, {
+                title: 'Chúc mừng bạn đã thắng đấu giá!',
+                content: `Chúc mừng! Bạn đã thắng đấu giá sản phẩm "${auction.product.title}" với giá trần: ${nextBidAmount.toLocaleString('vi-VN')} đ. Hãy hoàn tất thanh toán.`,
+                type: 'AUCTION_ENDED_WINNER',
+                referenceId: auctionId,
+              });
+              await this.notificationsService.createNotification(auction.product.ownerId, {
+                title: 'Sản phẩm đã bán thành công!',
+                content: `Sản phẩm "${auction.product.title}" của bạn đã bán thành công qua hình thức Đấu giá tự động đạt mức giá trần: ${nextBidAmount.toLocaleString('vi-VN')} đ.`,
+                type: 'AUCTION_ENDED_WINNER',
                 referenceId: auctionId,
               });
             } catch (err) {
-              console.error('Error creating outbid notification in auto-bid:', err);
+              console.error('Error sending auto-bid end notifications:', err);
             }
-          }
+          } else {
+            // Notify outbid user
+            if (currentWinnerId && currentWinnerId !== winnerId) {
+              try {
+                await this.notificationsService.createNotification(currentWinnerId, {
+                  title: 'Bạn đã bị outbid!',
+                  content: `Hệ thống tự động đấu giá đã outbid bạn ở sản phẩm "${auction.product.title}". Giá cao nhất hiện tại là ${nextBidAmount.toLocaleString('vi-VN')} đ`,
+                  type: 'OUTBID',
+                  referenceId: auctionId,
+                });
+              } catch (err) {
+                console.error('Error creating outbid notification in auto-bid:', err);
+              }
+            }
 
-          // Recurse to see if we need to run it again
-          await this.runProxyBidding(auctionId);
+            // Recurse to see if we need to run it again
+            await this.runProxyBidding(auctionId);
+          }
         }
       }
     }
