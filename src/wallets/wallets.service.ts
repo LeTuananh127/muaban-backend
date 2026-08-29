@@ -75,7 +75,14 @@ export class WalletsService {
     if (amount <= 0) throw new BadRequestException('Invalid top-up amount');
     const wallet = await this.getOrCreateWallet(userId);
     const updated = await this.prisma.wallet.update({ where: { id: wallet.id }, data: { balance: { increment: amount } } });
-    await this.prisma.walletTransaction.create({ data: { walletId: wallet.id, type: 'CREDIT', amount, reference } });
+    await this.prisma.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        type: 'CREDIT',
+        amount,
+        reference: reference || 'TOPUP:MANUAL',
+      },
+    });
     return updated;
   }
 
@@ -540,8 +547,21 @@ export class WalletsService {
       }
 
       const txType = tx.type?.toUpperCase();
+      const lowerRef = ref.toLowerCase();
+
       if (txType === 'CREDIT') {
-        if (productTitle) {
+        if (lowerRef.includes('vnp') || lowerRef.includes('vnpay')) {
+          displayDescription = 'Nạp tiền qua VNPAY';
+        } else if (
+          lowerRef.includes('topup') ||
+          lowerRef.includes('manual') ||
+          !ref ||
+          (!orderId && !auctionId && !lowerRef.includes('escrow') && !lowerRef.includes('order') && !lowerRef.includes('forfeit') && !lowerRef.includes('deposit'))
+        ) {
+          displayDescription = 'Nạp tiền vào ví';
+        } else if (lowerRef.includes('deposit') || lowerRef.includes('forfeit') || lowerRef.includes('compensation')) {
+          displayDescription = productTitle ? `Nhận bồi thường cọc: ${productTitle}` : 'Nhận bồi thường cọc do người mua hủy đơn';
+        } else if (productTitle) {
           displayDescription = `Doanh thu bán: ${productTitle}`;
         } else {
           displayDescription = 'Doanh thu bán hàng (Giải ngân Escrow)';
@@ -555,7 +575,7 @@ export class WalletsService {
       } else if (txType === 'DEBIT') {
         if (withdrawInfo) {
           displayDescription = `Rút tiền về ${withdrawInfo.bankName} (${withdrawInfo.accountNo})`;
-        } else if (ref.includes('withdraw')) {
+        } else if (lowerRef.includes('withdraw')) {
           displayDescription = 'Rút tiền về tài khoản ngân hàng';
         } else if (productTitle) {
           displayDescription = `Thanh toán mua hàng: ${productTitle}`;
@@ -569,7 +589,7 @@ export class WalletsService {
           displayDescription = 'Hoàn tiền / Giải phóng cọc';
         }
       } else if (txType === 'TOPUP') {
-        displayDescription = ref?.includes('vnp') ? 'Nạp tiền qua VNPAY' : 'Nạp tiền vào ví';
+        displayDescription = lowerRef.includes('vnp') ? 'Nạp tiền qua VNPAY' : 'Nạp tiền vào ví';
       } else {
         displayDescription = txType;
       }
