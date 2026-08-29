@@ -311,13 +311,13 @@ export class WalletsService {
     });
   }
 
-  async createVnpayPaymentUrl(userId: string, amount: number, ipAddr?: string) {
+  async createVnpayPaymentUrl(userId: string, amount: number, ipAddr?: string, customReturnUrl?: string) {
     if (amount < 10000) {
       throw new BadRequestException('Số tiền nạp tối thiểu qua VNPAY là 10.000 đ');
     }
     const txnRef = `vnp_${userId.substring(0, 6)}_${Date.now()}`;
     const frontendUrl = process.env.FRONTEND_URL || 'https://bazzarr.vercel.app';
-    const returnUrl = `${frontendUrl}/wallet?vnpay=return`;
+    const returnUrl = customReturnUrl || `${frontendUrl}/wallet?vnpay=return`;
     const orderInfo = `Nap tien vi Bazaar ${amount} VND`;
 
     const paymentUrl = buildVnpayUrl({

@@ -91,9 +91,20 @@ export class WalletsController {
   }
 
   @Post('vnpay/create-url')
-  createVnpayUrl(@Request() req, @Body('amount') amount: number) {
+  createVnpayUrl(
+    @Request() req,
+    @Body('amount') amount: number,
+    @Body('returnUrl') customReturnUrl?: string,
+  ) {
     const ipAddr = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
-    return this.walletsService.createVnpayPaymentUrl(req.user.userId, amount, ipAddr);
+    const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, '');
+    const fallbackReturnUrl = origin ? `${origin}/wallet?vnpay=return` : undefined;
+    return this.walletsService.createVnpayPaymentUrl(
+      req.user.userId,
+      amount,
+      ipAddr,
+      customReturnUrl || fallbackReturnUrl,
+    );
   }
 
   @Post('vnpay/verify-return')
