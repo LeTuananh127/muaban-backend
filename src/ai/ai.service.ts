@@ -125,43 +125,27 @@ export class AiService {
       const stopWords = [
         'tìm', 'cho', 'tôi', 'mình', 'em', 'anh', '1', 'một', 'vài', 'vái', 'cái', 'chiếc', 'đi', 'cơ', 'mà',
         'xem', 'có', 'nào', 'không', 'ko', 'k', 'với', 'hộ', 'giúp', 'muốn', 'mua', 'cần', 'ạ', 'nhé', 'ơi',
-        'ad', 'bạn', 'sản phẩm', 'đồ', 'hàng', 'đang', 'bán', 'đấu', 'giá', 'hot', 'nổi bật', 'gợi ý',
+        'ad', 'bạn', 'sản phẩm', 'đồ', 'hàng', 'đang', 'bán', 'đấu', 'giá', 'hot', 'nổi bật', 'gợi ý', 'tất cả', 'tat ca',
       ];
       const searchTokens = lowerMsg
         .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?'"]/g, ' ')
         .split(/\s+/)
         .filter((w) => w.length > 1 && !stopWords.includes(w));
 
-      // 3. Build Prisma query
-      let matchingAuctions: any[] = [];
-
-      if (matchedCategorySlug) {
-        // Query by matched category
-        matchingAuctions = await this.prisma.auction.findMany({
-          where: {
-            status: 'ACTIVE',
-            endTime: { gt: new Date() },
-            product: {
-              category: { slug: matchedCategorySlug },
-            },
-          },
+      // 3. Build Prisma query - Prioritize direct keyword matches, then category items
+      const auctionInclude = {
+        product: {
           include: {
-            product: {
-              include: {
-                category: true,
-                owner: { select: { name: true } },
-              },
-            },
-            bids: { select: { id: true } },
+            category: true,
+            owner: { select: { name: true } },
           },
-          orderBy: { createdAt: 'desc' },
-          take: 6,
-        });
-      }
+        },
+        bids: { select: { id: true } },
+      };
 
-      if (matchingAuctions.length === 0 && searchTokens.length > 0) {
-        // Query by specific search tokens in title, description, or category name
-        matchingAuctions = await this.prisma.auction.findMany({
+      let directKeywordAuctions: any[] = [];
+      if (searchTokens.length > 0) {
+        directKeywordAuctions = await this.prisma.auction.findMany({
           where: {
             status: 'ACTIVE',
             endTime: { gt: new Date() },
@@ -173,38 +157,51 @@ export class AiService {
               ],
             })),
           },
-          include: {
-            product: {
-              include: {
-                category: true,
-                owner: { select: { name: true } },
-              },
-            },
-            bids: { select: { id: true } },
-          },
+          include: auctionInclude,
           orderBy: { createdAt: 'desc' },
-          take: 6,
+          take: 30,
         });
       }
 
-      // If still no keyword match, provide a balanced top active auctions list across categories
+      let categoryAuctions: any[] = [];
+      if (matchedCategorySlug) {
+        categoryAuctions = await this.prisma.auction.findMany({
+          where: {
+            status: 'ACTIVE',
+            endTime: { gt: new Date() },
+            product: {
+              category: { slug: matchedCategorySlug },
+            },
+          },
+          include: auctionInclude,
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        });
+      }
+
+      // Combine results without duplicates (direct keyword matches first, then related category items)
+      const auctionMap = new Map<string, any>();
+      for (const a of directKeywordAuctions) {
+        auctionMap.set(a.id, a);
+      }
+      for (const a of categoryAuctions) {
+        if (!auctionMap.has(a.id)) {
+          auctionMap.set(a.id, a);
+        }
+      }
+
+      let matchingAuctions = Array.from(auctionMap.values());
+
+      // If still no keyword or category match, provide top active auctions across all categories
       if (matchingAuctions.length === 0) {
         matchingAuctions = await this.prisma.auction.findMany({
           where: {
             status: 'ACTIVE',
             endTime: { gt: new Date() },
           },
-          include: {
-            product: {
-              include: {
-                category: true,
-                owner: { select: { name: true } },
-              },
-            },
-            bids: { select: { id: true } },
-          },
+          include: auctionInclude,
           orderBy: { createdAt: 'desc' },
-          take: 6,
+          take: 30,
         });
       }
 
