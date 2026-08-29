@@ -132,85 +132,30 @@ export class AiService {
         .split(/\s+/)
         .filter((w) => w.length > 1 && !stopWords.includes(w));
 
-      // 3. Build Prisma query - Prioritize direct keyword matches, then category items
-      const auctionInclude = {
-        product: {
-          include: {
-            category: true,
-            owner: { select: { name: true } },
-          },
+      // 3. Fetch ALL currently active auctions from database without omission
+      const allActiveAuctions = await this.prisma.auction.findMany({
+        where: {
+          status: 'ACTIVE',
+          endTime: { gt: new Date() },
         },
-        bids: { select: { id: true } },
-      };
-
-      let directKeywordAuctions: any[] = [];
-      if (searchTokens.length > 0) {
-        directKeywordAuctions = await this.prisma.auction.findMany({
-          where: {
-            status: 'ACTIVE',
-            endTime: { gt: new Date() },
-            OR: searchTokens.map((token) => ({
-              OR: [
-                { product: { title: { contains: token, mode: 'insensitive' } } },
-                { product: { description: { contains: token, mode: 'insensitive' } } },
-                { product: { category: { name: { contains: token, mode: 'insensitive' } } } },
-              ],
-            })),
-          },
-          include: auctionInclude,
-          orderBy: { createdAt: 'desc' },
-          take: 30,
-        });
-      }
-
-      let categoryAuctions: any[] = [];
-      if (matchedCategorySlug) {
-        categoryAuctions = await this.prisma.auction.findMany({
-          where: {
-            status: 'ACTIVE',
-            endTime: { gt: new Date() },
-            product: {
-              category: { slug: matchedCategorySlug },
+        include: {
+          product: {
+            include: {
+              category: true,
+              owner: { select: { name: true } },
             },
           },
-          include: auctionInclude,
-          orderBy: { createdAt: 'desc' },
-          take: 30,
-        });
-      }
-
-      // Combine results without duplicates (direct keyword matches first, then related category items)
-      const auctionMap = new Map<string, any>();
-      for (const a of directKeywordAuctions) {
-        auctionMap.set(a.id, a);
-      }
-      for (const a of categoryAuctions) {
-        if (!auctionMap.has(a.id)) {
-          auctionMap.set(a.id, a);
-        }
-      }
-
-      let matchingAuctions = Array.from(auctionMap.values());
-
-      // If still no keyword or category match, provide top active auctions across all categories
-      if (matchingAuctions.length === 0) {
-        matchingAuctions = await this.prisma.auction.findMany({
-          where: {
-            status: 'ACTIVE',
-            endTime: { gt: new Date() },
-          },
-          include: auctionInclude,
-          orderBy: { createdAt: 'desc' },
-          take: 30,
-        });
-      }
+          bids: { select: { id: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
 
       const categoriesStr = categories.map((c) => c.name).join(', ');
-      const auctionsStr = matchingAuctions
+      const auctionsStr = allActiveAuctions
         .map((a) => {
           const currentPrice = Number(a.currentPrice || a.startingPrice);
           const bidCount = a.bids ? a.bids.length : 0;
-          return `- [${a.product.title}](/auction/${a.id}) (Danh mục: ${a.product.category?.name || 'Khác'}): Giá hiện tại ${currentPrice.toLocaleString('vi-VN')}đ, ${bidCount} lượt đấu giá, Kết thúc: ${new Date(a.endTime).toLocaleString('vi-VN')}`;
+          return `- ID: ${a.id} | Tiêu đề: ${a.product.title} | Danh mục: ${a.product.category?.name || 'Khác'} | Giá hiện tại: ${currentPrice.toLocaleString('vi-VN')}đ | ${bidCount} lượt bid | Link: [${a.product.title}](/auction/${a.id})`;
         })
         .join('\n');
 
@@ -223,26 +168,31 @@ Nhiệm vụ của bạn là:
 3. Giải thích chi tiết quy trình ký quỹ ví Escrow, quy tắc chống bắn tỉa Anti-sniping, chính sách bảo vệ người dùng một cách ngắn gọn, thân thiện và súc tích bằng Tiếng Việt.
 4. Giới thiệu về thông tin Đồ án & Tác giả khi được hỏi: Sàn đấu giá đồ cũ Bazzar được phát triển bởi sinh viên **Lê Tuấn Anh** (MSV: **22010165**), Lớp **K16-CNTT2**, Trường Đại học Phenikaa.
 
-Dưới đây là thông tin thời gian thực về sản phẩm và hệ thống để bạn tham khảo khi trả lời:
-- Các danh mục đồ cũ trên hệ thống: ${categoriesStr || 'Chưa có danh mục nào'}
-- Các phiên đấu giá đồ cũ phù hợp/đang diễn ra:
+Dưới đây là TOÀN BỘ danh sách các phiên đấu giá đang diễn ra trên sàn (thời gian thực):
+- Các danh mục: ${categoriesStr || 'Chưa có danh mục nào'}
+- Danh sách tất cả các sản phẩm đang đấu giá:
 ${auctionsStr || 'Hiện tại chưa có phiên đấu giá nào đang diễn ra.'}
 
-Quy tắc ứng xử và nghiệp vụ:
-1. Luôn phản hồi lịch sự, thân thiện, dùng emoji phù hợp.
-2. Nếu người dùng hỏi mua hoặc tìm kiếm sản phẩm (ví dụ điện thoại, laptop, máy ảnh, loa, đồng hồ, sách, thời trang...), hãy đối chiếu với danh sách đấu giá ở trên. Hãy giới thiệu các sản phẩm phù hợp và cung cấp liên kết theo định dạng markdown của React Router, ví dụ: [Tên sản phẩm](/auction/ID-của-sản-phẩm). Đừng tạo link ra trang web khác ngoài hệ thống.
-3. Hướng dẫn quy trình Đăng bán đồ cũ bằng đấu giá:
+QUY TẮC LỌC & PHÂN LOẠI SẢN PHẨM CHÍNH XÁC 100% (BẮT BUỘC):
+1. **LẤY HẾT, KHÔNG BỎ SÓT**: Khi người dùng hỏi về một loại sản phẩm cụ thể (ví dụ: "giày", "điện thoại", "tai nghe", "laptop", "túi xách", "kính", "áo", "đồng hồ"...), bạn PHẢI quét TOÀN BỘ danh sách trên và liệt kê ĐẦY ĐỦ 100% TẤT CẢ các sản phẩm thuộc đúng chủng loại đó. Tuyệt đối không được bỏ sót bất kỳ sản phẩm nào!
+2. **PHÂN BIỆT RẠCH RÒI TỪNG CHỦNG LOẠI**:
+   - **Giày**: CHỈ liệt kê giày, sneaker, giày da, boot, sandal... (KHÔNG gộp áo, balo, túi, kính vào mục giày).
+   - **Điện thoại**: CHỈ liệt kê smartphone/điện thoại như iPhone, Google Pixel, Samsung... (KHÔNG gộp tai nghe, gimbal, sạc dự phòng vào mục điện thoại).
+   - **Tai nghe / Loa**: CHỈ liệt kê tai nghe, loa, soundbar...
+   - **Túi xách / Balo / Ví**: CHỈ liệt kê túi xách, balo, bóp ví...
+   - **Áo / Quần**: CHỈ liệt kê trang phục áo khoác, hoodie, sơ mi, quần jeans...
+3. **GỢI Ý THÊM (NẾU CÓ)**: Nếu người dùng hỏi 1 loại, bạn hãy trả lời đầy đủ loại đó trước. Sau đó có thể thêm một mục nhỏ riêng bên dưới ghi "💡 Phụ kiện / Sản phẩm liên quan:" để gợi ý thêm, nhưng PHẢI tách bạch rõ ràng.
+4. **ĐỊNH DẠNG LINK**: Luôn dẫn link chuẩn theo cú pháp: [Tên sản phẩm](/auction/ID-của-sản-phẩm) kèm giá hiện tại và số lượt bid.
+5. Hướng dẫn quy trình Đăng bán đồ cũ bằng đấu giá:
    - **Bước 1**: [Đăng ký tài khoản](/register) hoặc [Đăng nhập](/login).
    - **Bước 2 - Xác minh người bán (KYC)**: Truy cập trang [Trang cá nhân](/profile) để gửi ảnh chụp CCCD 2 mặt và thông tin người bán.
    - **Bước 3 - Xét duyệt**: Chờ Quản trị viên (Admin) phê duyệt hồ sơ.
-   - **Bước 4 - Đăng tin đấu giá**: Truy cập [Đăng sản phẩm mới](/create-listing) để đặt giá khởi điểm, bước giá, chọn 1 trong 3 bố cục Layout và thiết lập quy tắc Anti-sniping gia hạn tự động.
-4. Giải thích các tính năng cốt lõi khi được hỏi:
-   - **Đấu giá trực tiếp (Bidding)**: Đặt mức giá mới cao hơn giá hiện tại + bước giá tối thiểu. Số dư cọc tương ứng sẽ tạm giữ trong Ví ký quỹ (WalletHold).
-   - **Ví ký quỹ cọc (Escrow Wallet Hold)**: Khóa cọc tự động khi đặt giá, tự động hoàn trả 100% tiền cọc ngay khi bị người khác đè giá cao hơn.
-   - **Chống canh phút chót (Dynamic Anti-sniping)**: Tự động cộng thêm thời gian nếu có lượt đặt giá hợp lệ ở những phút cuối phiên đấu giá.
-   - **Phí sàn**: Người bán chịu ${feePercent}% phí giao dịch khi đấu giá thành công (chuyển sang trạng thái Hoàn thành). Người mua hoàn toàn miễn phí giao dịch.
-   - **Xử lý khiếu nại hoàn tiền (Refund)**: Người mua có quyền mở yêu cầu hoàn tiền nếu đồ cũ nhận được không đúng như mô tả.
-5. Trả lời ngắn gọn, tập trung vào câu hỏi, tránh dài dòng lan man.
+   - **Bước 4 - Đăng tin đấu giá**: Truy cập [Đăng sản phẩm mới](/create-listing) để đặt giá khởi điểm, bước giá, chọn Layout và thiết lập Anti-sniping.
+6. Giải thích các tính năng cốt lõi:
+   - **Đấu giá trực tiếp (Bidding)**: Đặt giá cao hơn giá hiện tại + bước giá.
+   - **Ví ký quỹ cọc (WalletHold)**: Tạm giữ cọc tự động, hoàn cọc 100% ngay khi bị vượt giá.
+   - **Chống canh phút chót (Anti-sniping)**: Tự động gia hạn thời gian nếu có lượt đặt giá ở phút cuối.
+   - **Phí sàn**: Người bán chịu ${feePercent}% phí khi hoàn thành đơn. Người mua miễn phí 100%.
 `;
 
       // Candidate models for Google Generative AI
@@ -290,13 +240,14 @@ Quy tắc ứng xử và nghiệp vụ:
         );
       } else if (
         matchedCategoryInfo ||
-        ['gợi ý', 'sản phẩm', 'đang bán', 'đang đấu', 'có gì', 'gợi ý sản phẩm', 'tìm', 'đồ', 'cơ mà'].some((w) => lowerMsg.includes(w))
+        ['gợi ý', 'sản phẩm', 'đang bán', 'đang đấu', 'có gì', 'gợi ý sản phẩm', 'tìm', 'đồ', 'cơ mà', 'giày', 'điện thoại'].some((w) => lowerMsg.includes(w))
       ) {
-        if (matchingAuctions.length > 0) {
+        if (allActiveAuctions.length > 0) {
           const categoryTitle = matchedCategoryInfo
             ? `${matchedCategoryInfo.icon} Danh sách sản phẩm **${matchedCategoryInfo.name}**`
             : '🔥 Gợi ý các sản phẩm đang Đấu giá Nổi bật';
-          const listStr = matchingAuctions
+          const listStr = allActiveAuctions
+            .slice(0, 10)
             .map((a) => {
               const currentPrice = Number(a.currentPrice || a.startingPrice);
               const bidCount = a.bids ? a.bids.length : 0;
