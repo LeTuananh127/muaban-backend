@@ -31,21 +31,15 @@ const prisma = new PrismaClient({
 
 async function main() {
   const now = new Date();
-  const categories = await prisma.category.findMany();
-  for (const cat of categories) {
-    const activeCount = await prisma.auction.count({
-      where: {
-        product: { categoryId: cat.id },
-        status: 'ACTIVE',
-        endTime: { gt: now }
-      }
-    });
-    const totalCount = await prisma.auction.count({
-      where: {
-        product: { categoryId: cat.id }
-      }
-    });
-    console.log(`Category: ${cat.name} (${cat.slug}) -> Active: ${activeCount}, Total: ${totalCount}`);
+  const auctions = await prisma.auction.findMany({
+    where: {
+      product: { category: { slug: 'thoi-trang-giay-dep' } }
+    },
+    include: { product: true }
+  });
+  console.log('Total in thoi-trang-giay-dep:', auctions.length);
+  for (const a of auctions) {
+    console.log(`- [${a.status}] (End: ${a.endTime.toISOString()}) ${a.product.title}`);
   }
 }
 

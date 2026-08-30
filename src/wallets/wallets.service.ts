@@ -2,7 +2,6 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { getPlatformFeePercent } from '../escrow/escrow.service';
 import { MailService } from '../mail/mail.service';
-import { requestMomoPaymentUrl, verifyMomoReturnSignature, getMomoCredentials } from './momo.util';
 
 @Injectable()
 export class WalletsService {
@@ -359,67 +358,6 @@ export class WalletsService {
       success: true,
       amount,
       message: `Nạp thành công ${amount.toLocaleString('vi-VN')} đ qua VNPAY Sandbox!`,
-      wallet: updatedWallet,
-    };
-  }
-
-  async createMomoPaymentUrl(userId: string, amount: number, customReturnUrl?: string) {
-    if (amount < 10000) {
-      throw new BadRequestException('Số tiền nạp tối thiểu qua MoMo là 10.000 đ');
-    }
-    const orderId = `momo_${userId.substring(0, 6)}_${Date.now()}`;
-    const requestId = `req_${userId.substring(0, 6)}_${Date.now()}`;
-    const frontendUrl = process.env.FRONTEND_URL || 'https://bazzarr.vercel.app';
-    const redirectUrl = customReturnUrl || `${frontendUrl}/wallet?momo=return`;
-    const { ipnUrl } = getMomoCredentials();
-    const orderInfo = `Nap tien vi Bazaar ${amount.toLocaleString('vi-VN')} VND`;
-
-    try {
-      const momoRes = await requestMomoPaymentUrl({
-        amount,
-        orderId,
-        orderInfo,
-        requestId,
-        redirectUrl,
-        ipnUrl,
-      });
-
-      if (momoRes.resultCode !== 0) {
-        throw new BadRequestException(momoRes.message || 'Không thể tạo phiên thanh toán MoMo');
-      }
-
-      return {
-        paymentUrl: momoRes.payUrl,
-        qrCodeUrl: momoRes.qrCodeUrl,
-        deeplink: momoRes.deeplink,
-        orderId,
-      };
-    } catch (err: any) {
-      this.logger.error(`MoMo create URL error: ${err.message}`);
-      throw new BadRequestException(err.message || 'Lỗi kết nối cổng thanh toán MoMo');
-    }
-  }
-
-  async verifyMomoCallback(userId: string, momoParams: Record<string, any>) {
-    const isValid = verifyMomoReturnSignature(momoParams);
-    if (!isValid) {
-      throw new BadRequestException('Chữ ký MoMo không hợp lệ');
-    }
-
-    const resultCode = Number(momoParams['resultCode']);
-    if (resultCode !== 0) {
-      const message = momoParams['message'] || `Giao dịch MoMo không thành công (Mã lỗi: ${resultCode})`;
-      throw new BadRequestException(message);
-    }
-
-    const amount = Number(momoParams['amount']) || 0;
-    const transId = momoParams['transId'] || momoParams['orderId'] || `MOMO_${Date.now()}`;
-
-    const updatedWallet = await this.topUp(userId, amount, `MOMO:${transId}`);
-    return {
-      success: true,
-      amount,
-      message: `Nạp thành công ${amount.toLocaleString('vi-VN')} đ qua ví MoMo!`,
       wallet: updatedWallet,
     };
   }
