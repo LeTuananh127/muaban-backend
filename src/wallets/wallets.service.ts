@@ -549,8 +549,11 @@ export class WalletsService {
       const txType = tx.type?.toUpperCase();
       const lowerRef = ref.toLowerCase();
 
+      let category: 'TOPUP' | 'REVENUE' | 'DEBIT' | 'WITHDRAWAL' | 'FEE' | 'REFUND' = 'DEBIT';
+
       if (txType === 'CREDIT') {
         if (lowerRef.includes('vnp') || lowerRef.includes('vnpay')) {
+          category = 'TOPUP';
           displayDescription = 'Nạp tiền qua VNPAY';
         } else if (
           lowerRef.includes('topup') ||
@@ -558,15 +561,20 @@ export class WalletsService {
           !ref ||
           (!orderId && !auctionId && !lowerRef.includes('escrow') && !lowerRef.includes('order') && !lowerRef.includes('forfeit') && !lowerRef.includes('deposit'))
         ) {
+          category = 'TOPUP';
           displayDescription = 'Nạp tiền vào ví';
         } else if (lowerRef.includes('deposit') || lowerRef.includes('forfeit') || lowerRef.includes('compensation')) {
+          category = 'REVENUE';
           displayDescription = productTitle ? `Nhận bồi thường cọc: ${productTitle}` : 'Nhận bồi thường cọc do người mua hủy đơn';
         } else if (productTitle) {
+          category = 'REVENUE';
           displayDescription = `Doanh thu bán: ${productTitle}`;
         } else {
+          category = 'REVENUE';
           displayDescription = 'Doanh thu bán hàng (Giải ngân Escrow)';
         }
       } else if (txType === 'FEE') {
+        category = 'FEE';
         if (productTitle) {
           displayDescription = `Phí sàn giao dịch: ${productTitle}`;
         } else {
@@ -574,21 +582,27 @@ export class WalletsService {
         }
       } else if (txType === 'DEBIT') {
         if (withdrawInfo) {
+          category = 'WITHDRAWAL';
           displayDescription = `Rút tiền về ${withdrawInfo.bankName} (${withdrawInfo.accountNo})`;
         } else if (lowerRef.includes('withdraw')) {
+          category = 'WITHDRAWAL';
           displayDescription = 'Rút tiền về tài khoản ngân hàng';
         } else if (productTitle) {
+          category = 'DEBIT';
           displayDescription = `Thanh toán mua hàng: ${productTitle}`;
         } else {
+          category = 'DEBIT';
           displayDescription = 'Thanh toán đơn hàng';
         }
       } else if (txType === 'REFUND') {
+        category = 'REFUND';
         if (productTitle) {
           displayDescription = `Hoàn tiền / Giải phóng cọc: ${productTitle}`;
         } else {
           displayDescription = 'Hoàn tiền / Giải phóng cọc';
         }
       } else if (txType === 'TOPUP') {
+        category = 'TOPUP';
         displayDescription = lowerRef.includes('vnp') ? 'Nạp tiền qua VNPAY' : 'Nạp tiền vào ví';
       } else {
         displayDescription = txType;
@@ -596,6 +610,7 @@ export class WalletsService {
 
       return {
         ...tx,
+        category,
         productTitle,
         productImage,
         orderId,
