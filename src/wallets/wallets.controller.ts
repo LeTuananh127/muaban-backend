@@ -111,4 +111,25 @@ export class WalletsController {
   verifyVnpayReturn(@Request() req, @Body() vnpParams: Record<string, any>) {
     return this.walletsService.verifyVnpayCallback(req.user.userId, vnpParams);
   }
+
+  @Post('momo/create-url')
+  createMomoUrl(
+    @Request() req,
+    @Body('amount') amount: number,
+    @Body('returnUrl') customReturnUrl?: string,
+  ) {
+    const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, '');
+    const fallbackReturnUrl = origin ? `${origin}/wallet?momo=return` : undefined;
+    return this.walletsService.createMomoPaymentUrl(
+      req.user.userId,
+      amount,
+      customReturnUrl || fallbackReturnUrl,
+    );
+  }
+
+  @Post('momo/verify-return')
+  verifyMomoReturn(@Request() req, @Body() momoParams: Record<string, any>) {
+    return this.walletsService.verifyMomoCallback(req.user.userId, momoParams);
+  }
 }
+
