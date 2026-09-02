@@ -802,71 +802,8 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Order not found');
     if (order.status !== 'DISPUTED') throw new BadRequestException('Order is not in disputed status');
 
-    const decisionReason = note || 'Admin phán quyết Chấp nhận Refund 100% cho Người mua sau khi thẩm định bằng chứng 2 bên.';
+    const decisionReason = note || 'Admin phán quyết Chấp nhận yêu cầu Trả hàng / Hoàn tiền cho Người mua sau khi thẩm định bằng chứng 2 bên.';
 
-    // Refund escrow
-    if (order.escrow) {
-      try {
-        await this.escrowService.refundEscrow(order.escrow.id);
-      } catch (e) {
-        console.warn('Escrow refund failed', e?.message ?? e);
-      }
-    }
-
-    const payment = await this.prisma.payment.findFirst({ where: { orderId } });
-    if (payment) {
-      if (payment.method === 'CASH_ON_DELIVERY' && payment.status === 'COMPLETED') {
-        try {
-          await this.prisma.$transaction(async (tx) => {
-            // Deduct from seller
-            let sellerWallet = await tx.wallet.findUnique({ where: { userId: order.sellerId } });
-            if (!sellerWallet) {
-              sellerWallet = await tx.wallet.create({ data: { userId: order.sellerId, balance: 0 } });
-            }
-            await tx.wallet.update({
-              where: { id: sellerWallet.id },
-              data: { balance: { decrement: payment.amount } },
-            });
-            await tx.walletTransaction.create({
-              data: {
-                walletId: sellerWallet.id,
-                type: 'DEBIT',
-                amount: payment.amount,
-                reference: `dispute_refund_chargeback:${order.id}`,
-              },
-            });
-
-            // Credit to buyer
-            let buyerWallet = await tx.wallet.findUnique({ where: { userId: order.buyerId } });
-            if (!buyerWallet) {
-              buyerWallet = await tx.wallet.create({ data: { userId: order.buyerId, balance: 0 } });
-            }
-            await tx.wallet.update({
-              where: { id: buyerWallet.id },
-              data: { balance: { increment: payment.amount } },
-            });
-            await tx.walletTransaction.create({
-              data: {
-                walletId: buyerWallet.id,
-                type: 'REFUND',
-                amount: payment.amount,
-                reference: `dispute_refund:${order.id}`,
-              },
-            });
-          });
-        } catch (e) {
-          console.warn('Dispute COD wallet chargeback failed', e?.message ?? e);
-        }
-      }
-
-      try {
-        await this.paymentsService.refundPayment(payment.id);
-      } catch (e) {
-        console.warn('Dispute Payment refund failed', e?.message ?? e);
-      }
-    }
-
-    // Update refund request status and log explicit Admin decision reason
     const latestRefundRequest = await this.prisma.refundRequest.findFirst({
       where: { orderId },
       orderBy: { createdAt: 'desc' },
@@ -874,25 +811,29 @@ export class OrdersService {
     if (latestRefundRequest) {
       await this.prisma.refundRequest.update({
         where: { id: latestRefundRequest.id },
-        data: { status: 'APPROVED', note: `[Phán quyết Admin - CHẤP NHẬN HOÀN TIỀN]: ${decisionReason}` },
+        data: {
+          status: 'APPROVED',
+          processedAt: new Date(),
+          note: `[Phán quyết Admin - CHẤP THUẬN TRẢ HÀNG]: ${decisionReason}`,
+        },
       });
     }
 
-    // Notify BOTH Buyer and Seller with Admin's verdict and reasoning!
+    // Notify BOTH Buyer and Seller: Buyer must ship back the item; Escrow remains safely held!
     try {
       await this.prisma.notification.createMany({
         data: [
           {
             userId: order.buyerId,
-            title: '⚖️ Phán quyết tranh chấp: Chấp nhận hoàn tiền',
-            content: `Ban Quản Trị đã phân xử CHẤP NHẬN HOÀN TIỀN cho bạn trong đơn hàng #${order.id}. Lý do phán quyết: "${decisionReason}". Số tiền đã được hoàn 100% về Ví Bazaar của bạn.`,
+            title: '⚖️ Phán quyết tranh chấp: Chấp thuận yêu cầu Trả hàng',
+            content: `Ban Quản Trị đã phân xử CHẤP THUẬN yêu cầu trả hàng của bạn cho đơn hàng #${order.id.slice(-6)}. Lý do: "${decisionReason}". Vui lòng đóng gói và gửi trả lại hàng cho người bán, sau đó cập nhật thông tin vận chuyển/mã vận đơn. Khi người bán nhận lại hàng, tiền sẽ được hoàn 100% về Ví của bạn!`,
             type: 'DISPUTE_RESOLVED',
             referenceId: order.id,
           },
           {
             userId: order.sellerId,
-            title: '⚖️ Phán quyết tranh chấp: Hoàn tiền cho Người mua',
-            content: `Ban Quản Trị đã phân xử chấp nhận yêu cầu hoàn tiền của Người mua trong đơn hàng #${order.id}. Lý do phán quyết: "${decisionReason}". Số tiền tạm giữ đã được hoàn lại cho người mua.`,
+            title: '⚖️ Phán quyết tranh chấp: Chấp thuận cho Người mua trả hàng',
+            content: `Ban Quản Trị đã phân xử chấp thuận cho Người mua trả lại hàng trong đơn hàng #${order.id.slice(-6)}. Lý do: "${decisionReason}". Người mua có trách nhiệm gửi trả lại hàng cho bạn. Tiền thanh toán vẫn được BẢO VỆ TRONG KÝ QUỸ cho đến khi bạn nhận lại hàng và bấm xác nhận.`,
             type: 'DISPUTE_RESOLVED',
             referenceId: order.id,
           },
@@ -902,9 +843,10 @@ export class OrdersService {
       console.log('Error creating dispute resolution notifications:', e);
     }
 
-    return this.prisma.order.update({
+    // Return updated order in DISPUTED / RETURN process (not CANCELLED yet)
+    return this.prisma.order.findUnique({
       where: { id: orderId },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
+      include: { escrow: true, refundRequests: true },
     });
   }
 
