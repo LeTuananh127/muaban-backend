@@ -405,7 +405,31 @@ export class AdminService {
       take: 80,
     });
 
-    // 3. Fetch recent bids (Auction logs)
+    // 3. Fetch recent products & auctions (Listing / Đăng bài logs)
+    const recentProducts = await this.prisma.product.findMany({
+      include: {
+        owner: { select: { id: true, name: true, email: true, role: true } },
+        category: { select: { id: true, name: true } },
+        auction: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+    });
+
+    const recentAuctions = await this.prisma.auction.findMany({
+      include: {
+        product: {
+          include: {
+            owner: { select: { id: true, name: true, email: true } },
+            category: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+    });
+
+    // 4. Fetch recent bids (Auction logs)
     const bids = await this.prisma.bid.findMany({
       include: {
         user: { select: { id: true, name: true, email: true } },
@@ -415,7 +439,7 @@ export class AdminService {
       take: 50,
     });
 
-    // 4. Fetch reports & security events (Security logs)
+    // 5. Fetch reports & security events (Security logs)
     const reports = await this.prisma.report.findMany({
       include: {
         reporter: { select: { id: true, name: true, email: true } },
@@ -442,6 +466,77 @@ export class AdminService {
     });
 
     const rawLogs: any[] = [];
+
+    // Map listing / products
+    for (const p of recentProducts) {
+      rawLogs.push({
+        id: `prod_${p.id}`,
+        timestamp: p.createdAt.toISOString(),
+        level: p.status === 'AVAILABLE' || p.status === 'IN_AUCTION' ? 'SUCCESS' : 'INFO',
+        category: 'LISTING',
+        action: 'PRODUCT_CREATED',
+        actor: {
+          id: p.ownerId,
+          name: p.owner?.name,
+          email: p.owner?.email,
+          role: 'SELLER',
+        },
+        target: {
+          type: 'PRODUCT',
+          id: p.id,
+          title: p.title,
+        },
+        message: `Người bán ${p.owner?.name || 'Ẩn danh'} (${p.owner?.email}) đăng bán sản phẩm mới: "${p.title}" thuộc danh mục "${p.category?.name || 'Chung'}". Trạng thái: ${p.status}`,
+        metadata: {
+          productId: p.id,
+          title: p.title,
+          category: p.category?.name,
+          condition: p.condition,
+          location: p.location,
+          status: p.status,
+          imagesCount: p.images?.length || 0,
+        },
+      });
+    }
+
+    // Map listing / auctions
+    for (const a of recentAuctions) {
+      let level = 'INFO';
+      if (a.status === 'ACTIVE') level = 'SUCCESS';
+      else if (a.status === 'CANCELLED') level = 'WARNING';
+      else if (a.status === 'ENDED') level = 'INFO';
+
+      rawLogs.push({
+        id: `auc_${a.id}`,
+        timestamp: a.createdAt.toISOString(),
+        level,
+        category: 'LISTING',
+        action: `AUCTION_${a.status}`,
+        actor: {
+          id: a.product?.ownerId,
+          name: a.product?.owner?.name,
+          email: a.product?.owner?.email,
+          role: 'SELLER',
+        },
+        target: {
+          type: 'AUCTION',
+          id: a.id,
+          title: a.product?.title || 'Phiên đấu giá',
+        },
+        message: `Khởi tạo phiên đấu giá cho "${a.product?.title || 'Sản phẩm'}". Giá khởi điểm: ${new Intl.NumberFormat('vi-VN').format(a.startingPrice)} đ, Bước giá: ${new Intl.NumberFormat('vi-VN').format(a.bidIncrement)} đ. Trạng thái: ${a.status}`,
+        metadata: {
+          auctionId: a.id,
+          productId: a.productId,
+          startingPrice: a.startingPrice,
+          currentPrice: a.currentPrice,
+          depositPercent: a.depositPercent,
+          minTrustScore: a.minTrustScore,
+          status: a.status,
+          startTime: a.startTime,
+          endTime: a.endTime,
+        },
+      });
+    }
 
     // Map transactions
     for (const t of transactions) {
@@ -600,7 +695,7 @@ export class AdminService {
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
     let recent24h = 0;
     const countsByLevel = { INFO: 0, SUCCESS: 0, WARNING: 0, ERROR: 0 };
-    const countsByCategory = { ORDER: 0, FINANCE: 0, AUCTION: 0, SECURITY: 0, SYSTEM: 0 };
+    const countsByCategory = { LISTING: 0, ORDER: 0, FINANCE: 0, AUCTION: 0, SECURITY: 0, SYSTEM: 0 };
 
     for (const item of rawLogs) {
       if (new Date(item.timestamp).getTime() >= oneDayAgo) {
