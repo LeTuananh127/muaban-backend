@@ -375,4 +375,274 @@ export class AdminService {
 
     return { period, labels, series, totals };
   }
+
+  // ===================== NHẬT KÝ HỆ THỐNG / AUDIT LOGS =====================
+  async getSystemLogs(query: { category?: string; level?: string; search?: string; limit?: number }) {
+    const limit = Math.min(query.limit || 150, 300);
+
+    // 1. Fetch wallet transactions (Finance logs)
+    const transactions = await this.prisma.walletTransaction.findMany({
+      include: {
+        wallet: {
+          include: {
+            user: { select: { id: true, name: true, email: true, role: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 80,
+    });
+
+    // 2. Fetch recent orders & their transitions (Order logs)
+    const orders = await this.prisma.order.findMany({
+      include: {
+        buyer: { select: { id: true, name: true, email: true } },
+        seller: { select: { id: true, name: true, email: true } },
+        auction: { include: { product: true } },
+        refundRequests: { take: 1, orderBy: { createdAt: 'desc' } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 80,
+    });
+
+    // 3. Fetch recent bids (Auction logs)
+    const bids = await this.prisma.bid.findMany({
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        auction: { include: { product: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    // 4. Fetch reports & security events (Security logs)
+    const reports = await this.prisma.report.findMany({
+      include: {
+        reporter: { select: { id: true, name: true, email: true } },
+        reportedUser: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+    });
+
+    const verifications = await this.prisma.user.findMany({
+      where: {
+        sellerVerificationStatus: { in: ['PENDING', 'APPROVED', 'REJECTED'] },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        shopName: true,
+        sellerVerificationStatus: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+    });
+
+    const rawLogs: any[] = [];
+
+    // Map transactions
+    for (const t of transactions) {
+      const isRefund = t.type === 'REFUND' || t.reference?.includes('Hoàn tiền');
+      const isCompensation = t.reference?.includes('Bồi thường');
+      
+      let level = 'INFO';
+      if (isRefund || isCompensation) level = 'SUCCESS';
+      else if (t.type === 'FEE') level = 'INFO';
+      else if (t.amount > 10000000) level = 'WARNING';
+
+      rawLogs.push({
+        id: `tx_${t.id}`,
+        timestamp: t.createdAt.toISOString(),
+        level,
+        category: 'FINANCE',
+        action: `WALLET_${t.type}`,
+        actor: t.wallet?.user ? {
+          id: t.wallet.user.id,
+          name: t.wallet.user.name,
+          email: t.wallet.user.email,
+          role: t.wallet.user.role,
+        } : { name: 'Hệ thống', role: 'SYSTEM' },
+        message: `${t.wallet?.user?.name || 'Tài khoản'} thực hiện giao dịch ${t.type} số tiền ${new Intl.NumberFormat('vi-VN').format(t.amount)} đ. Nội dung: "${t.reference || 'Không có ghi chú'}"`,
+        metadata: {
+          transactionId: t.id,
+          walletId: t.walletId,
+          type: t.type,
+          amount: t.amount,
+          reference: t.reference,
+        },
+      });
+    }
+
+    // Map orders
+    for (const o of orders) {
+      let level = 'INFO';
+      if (o.status === 'COMPLETED') level = 'SUCCESS';
+      else if (o.status === 'CANCELLED' || o.status === 'DISPUTED') level = 'WARNING';
+
+      let extraDesc = '';
+      if (o.refundRequests && o.refundRequests.length > 0) {
+        extraDesc = ` (Có yêu cầu hoàn tiền/khiếu nại: "${o.refundRequests[0].reason || ''}")`;
+      }
+
+      rawLogs.push({
+        id: `ord_${o.id}_${o.updatedAt.getTime()}`,
+        timestamp: o.updatedAt.toISOString(),
+        level,
+        category: 'ORDER',
+        action: `ORDER_${o.status}`,
+        actor: {
+          id: o.buyerId,
+          name: o.buyer?.name,
+          email: o.buyer?.email,
+          role: 'BUYER',
+        },
+        target: {
+          type: 'ORDER',
+          id: o.id,
+          title: o.auction?.product?.title || 'Sản phẩm đấu giá',
+        },
+        message: `Đơn hàng #${o.id.slice(-6)} (${o.auction?.product?.title || 'Sản phẩm'}) cập nhật trạng thái sang ${o.status}. Người bán: ${o.seller?.name || 'N/A'}, Người mua: ${o.buyer?.name || 'N/A'}. Tổng tiền: ${new Intl.NumberFormat('vi-VN').format(o.totalAmount)} đ.${extraDesc}`,
+        metadata: {
+          orderId: o.id,
+          status: o.status,
+          totalAmount: o.totalAmount,
+          sellerName: o.seller?.name,
+          buyerName: o.buyer?.name,
+          shippingProvider: o.shippingProvider,
+          trackingCode: o.trackingCode,
+        },
+      });
+    }
+
+    // Map bids
+    for (const b of bids) {
+      rawLogs.push({
+        id: `bid_${b.id}`,
+        timestamp: b.createdAt.toISOString(),
+        level: 'INFO',
+        category: 'AUCTION',
+        action: 'BID_PLACED',
+        actor: {
+          id: b.userId,
+          name: b.user?.name,
+          email: b.user?.email,
+          role: 'BIDDER',
+        },
+        target: {
+          type: 'AUCTION',
+          id: b.auctionId,
+          title: b.auction?.product?.title || 'Phiên đấu giá',
+        },
+        message: `Người dùng ${b.user?.name || 'Ẩn danh'} (${b.user?.email}) đặt giá ${new Intl.NumberFormat('vi-VN').format(b.amount)} đ cho sản phẩm "${b.auction?.product?.title || 'Sản phẩm'}"`,
+        metadata: {
+          bidId: b.id,
+          auctionId: b.auctionId,
+          amount: b.amount,
+        },
+      });
+    }
+
+    // Map security / reports
+    for (const r of reports) {
+      rawLogs.push({
+        id: `rep_${r.id}`,
+        timestamp: r.createdAt.toISOString(),
+        level: r.status === 'PENDING' ? 'WARNING' : 'INFO',
+        category: 'SECURITY',
+        action: `ABUSE_REPORT_${r.status}`,
+        actor: {
+          id: r.reporterId,
+          name: r.reporter?.name,
+          email: r.reporter?.email,
+          role: 'USER',
+        },
+        message: `Báo cáo vi phạm #${r.id.slice(-6)} từ ${r.reporter?.name}: "${r.reason}". Trạng thái: ${r.status}`,
+        metadata: {
+          reportId: r.id,
+          reportedUserId: r.reportedUserId,
+          reason: r.reason,
+          status: r.status,
+        },
+      });
+    }
+
+    // Map KYC verifications
+    for (const v of verifications) {
+      rawLogs.push({
+        id: `kyc_${v.id}`,
+        timestamp: v.createdAt.toISOString(),
+        level: v.sellerVerificationStatus === 'APPROVED' ? 'SUCCESS' : v.sellerVerificationStatus === 'REJECTED' ? 'ERROR' : 'WARNING',
+        category: 'SECURITY',
+        action: `SELLER_KYC_${v.sellerVerificationStatus}`,
+        actor: {
+          id: v.id,
+          name: v.name,
+          email: v.email,
+          role: 'SELLER',
+        },
+        message: `Hồ sơ xác thực CCCD/Seller KYC của ${v.name} (${v.email}). Trạng thái: ${v.sellerVerificationStatus}`,
+        metadata: {
+          userId: v.id,
+          shopName: v.shopName,
+          status: v.sellerVerificationStatus,
+        },
+      });
+    }
+
+    // Sort all combined logs by timestamp desc
+    rawLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // Calculate overall metric counts before filter
+    const now = Date.now();
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+    let recent24h = 0;
+    const countsByLevel = { INFO: 0, SUCCESS: 0, WARNING: 0, ERROR: 0 };
+    const countsByCategory = { ORDER: 0, FINANCE: 0, AUCTION: 0, SECURITY: 0, SYSTEM: 0 };
+
+    for (const item of rawLogs) {
+      if (new Date(item.timestamp).getTime() >= oneDayAgo) {
+        recent24h++;
+      }
+      if (countsByLevel[item.level] !== undefined) {
+        countsByLevel[item.level]++;
+      }
+      if (countsByCategory[item.category] !== undefined) {
+        countsByCategory[item.category]++;
+      }
+    }
+
+    // Filter by query params
+    let filtered = rawLogs;
+    if (query.category && query.category !== 'ALL') {
+      const targetCat = query.category.toUpperCase();
+      filtered = filtered.filter((l) => l.category === targetCat);
+    }
+    if (query.level && query.level !== 'ALL') {
+      const targetLvl = query.level.toUpperCase();
+      filtered = filtered.filter((l) => l.level === targetLvl);
+    }
+    if (query.search && query.search.trim()) {
+      const q = query.search.trim().toLowerCase();
+      filtered = filtered.filter((l) =>
+        l.message?.toLowerCase().includes(q) ||
+        l.action?.toLowerCase().includes(q) ||
+        l.actor?.name?.toLowerCase().includes(q) ||
+        l.actor?.email?.toLowerCase().includes(q) ||
+        l.id?.toLowerCase().includes(q)
+      );
+    }
+
+    const paged = filtered.slice(0, limit);
+
+    return {
+      logs: paged,
+      total: filtered.length,
+      countsByLevel,
+      countsByCategory,
+      recent24h,
+    };
+  }
 }

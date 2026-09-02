@@ -148,4 +148,20 @@ export class AdminController {
   ) {
     return this.walletsService.rejectWithdraw(id, note);
   }
+
+  // ===================== NHẬT KÝ HỆ THỐNG / AUDIT LOGS =====================
+  @Get('logs')
+  getSystemLogs(
+    @Query('category') category?: string,
+    @Query('level') level?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminService.getSystemLogs({
+      category,
+      level,
+      search,
+      limit: limit ? parseInt(limit, 10) : 100,
+    });
+  }
 }
