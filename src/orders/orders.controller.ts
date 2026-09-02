@@ -102,4 +102,14 @@ export class OrdersController {
   ) {
     return this.ordersService.refuseOrder(req.user.userId, orderId, reason);
   }
+
+  @Post(':id/dispute-refusal')
+  disputeRefusal(
+    @Request() req,
+    @Param('id') orderId: string,
+    @Body('reason') reason: string,
+    @Body('images') images?: string[],
+  ) {
+    return this.ordersService.disputeRefusal(req.user.userId, orderId, reason, images);
+  }
 }

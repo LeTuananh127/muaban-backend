@@ -49,7 +49,7 @@ export class OrdersService {
       where: { buyerId: userId },
       include: {
         auction: { include: { product: true } },
-        seller: { select: { id: true, name: true, avatar: true } },
+        seller: { select: { id: true, name: true, avatar: true, email: true, phone: true, shopName: true, warehouseAddress: true } },
         refundRequests: true,
         payment: true,
       },
@@ -75,7 +75,7 @@ export class OrdersService {
       where: { sellerId: userId },
       include: {
         auction: { include: { product: true } },
-        buyer: { select: { id: true, name: true, avatar: true } },
+        buyer: { select: { id: true, name: true, avatar: true, email: true, phone: true, defaultShippingAddress: true } },
         refundRequests: true,
         payment: true,
       },
@@ -101,8 +101,8 @@ export class OrdersService {
       where: { id: orderId },
       include: {
         auction: { include: { product: true } },
-        seller: { select: { id: true, name: true, avatar: true, email: true, phone: true } },
-        buyer: { select: { id: true, name: true, avatar: true, email: true, phone: true } },
+        seller: { select: { id: true, name: true, avatar: true, email: true, phone: true, shopName: true, warehouseAddress: true } },
+        buyer: { select: { id: true, name: true, avatar: true, email: true, phone: true, defaultShippingAddress: true } },
         payment: true,
       },
     });
@@ -169,8 +169,10 @@ export class OrdersService {
       throw new BadRequestException('Seller can only update status to SHIPPED or CANCELLED');
     }
 
-    if (order.buyerId === userId && normalizedStatus === OrderStatus.CANCELLED && String(order.status) === 'COMPLETED') {
-      throw new BadRequestException('Cannot cancel a completed order');
+    if (order.buyerId === userId && normalizedStatus === OrderStatus.CANCELLED) {
+      if (['DELIVERED', 'COMPLETED'].includes(String(order.status))) {
+        throw new BadRequestException('Đơn hàng đã được giao tới nơi hoặc đã hoàn thành, bạn không thể trực tiếp từ chối/hủy đơn hàng để nhận lại tiền ngay. Nếu sản phẩm có vấn đề (lỗi, hỏng hóc, không đúng mô tả), vui lòng bấm nút "Yêu cầu hoàn tiền" kèm ảnh bằng chứng để người bán và hệ thống xác minh đối soát.');
+      }
     }
 
     if (order.sellerId === userId && normalizedStatus === OrderStatus.SHIPPED) {
@@ -210,12 +212,16 @@ export class OrdersService {
       });
     }
 
+    const wasShipped = String(order.status) === 'SHIPPED';
+    const shippingFee = Number((order as any).auction?.shippingCost ?? (order as any).shippingFee ?? 0);
+    const shouldDeductShipping = wasShipped && shippingFee > 0;
+
     if (normalizedStatus === OrderStatus.CANCELLED) {
       // If order was already paid, refund escrow
       const escrowId = order.escrow?.id || order.escrowId;
       if (escrowId) {
         try {
-          await this.escrowService.refundEscrow(escrowId);
+          await this.escrowService.refundEscrow(escrowId, shouldDeductShipping, shippingFee);
         } catch (error) {
           console.log('Could not refund escrow:', error.message);
         }
@@ -363,18 +369,34 @@ export class OrdersService {
             referenceId: orderId,
           });
         } else if (normalizedStatus === OrderStatus.CANCELLED) {
-          await this.notificationsService.createNotification(updatedOrder.buyerId, {
-            title: '⚠️ Đơn hàng đã bị hủy',
-            content: `Đơn hàng #${orderShortId} (${productName}) đã bị hủy.`,
-            type: 'ORDER_CANCELLED',
-            referenceId: orderId,
-          });
-          await this.notificationsService.createNotification(updatedOrder.sellerId, {
-            title: '⚠️ Đơn hàng đã bị hủy',
-            content: `Đơn hàng #${orderShortId} (${productName}) đã bị hủy.`,
-            type: 'ORDER_CANCELLED',
-            referenceId: orderId,
-          });
+          if (wasShipped && shippingFee > 0) {
+            const refundedToBuyer = Math.max(0, updatedOrder.totalAmount - shippingFee);
+            await this.notificationsService.createNotification(updatedOrder.buyerId, {
+              title: '⚠️ Đơn hàng đã bị hủy (Từ chối nhận hàng)',
+              content: `Đơn hàng #${orderShortId} (${productName}) đã bị hủy do từ chối nhận. Tiền sản phẩm (${new Intl.NumberFormat('vi-VN').format(refundedToBuyer)} đ) đã được hoàn về Ví Bazaar. Phí vận chuyển (${new Intl.NumberFormat('vi-VN').format(shippingFee)} đ) được chuyển bồi thường cho Người bán.`,
+              type: 'ORDER_CANCELLED',
+              referenceId: orderId,
+            });
+            await this.notificationsService.createNotification(updatedOrder.sellerId, {
+              title: '⚠️ Người mua từ chối nhận hàng',
+              content: `Đơn hàng #${orderShortId} (${productName}) đã bị người mua từ chối nhận. Bạn đã được bồi thường cước phí vận chuyển (${new Intl.NumberFormat('vi-VN').format(shippingFee)} đ) vào Ví Bazaar.`,
+              type: 'ORDER_CANCELLED',
+              referenceId: orderId,
+            });
+          } else {
+            await this.notificationsService.createNotification(updatedOrder.buyerId, {
+              title: '⚠️ Đơn hàng đã bị hủy',
+              content: `Đơn hàng #${orderShortId} (${productName}) đã bị hủy. Toàn bộ tiền thanh toán đã được hoàn về Ví Bazaar của bạn.`,
+              type: 'ORDER_CANCELLED',
+              referenceId: orderId,
+            });
+            await this.notificationsService.createNotification(updatedOrder.sellerId, {
+              title: '⚠️ Đơn hàng đã bị hủy',
+              content: `Đơn hàng #${orderShortId} (${productName}) đã bị hủy.`,
+              type: 'ORDER_CANCELLED',
+              referenceId: orderId,
+            });
+          }
         }
       } catch (notifErr) {
         console.error('Failed to send order status notification:', notifErr);
@@ -492,12 +514,49 @@ export class OrdersService {
     const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: { escrow: true } });
     if (!order) throw new NotFoundException('Order not found');
 
+    const isRefusal = refund.reason?.includes('[TỪ CHỐI NHẬN HÀNG]');
+    const orderWithAuction = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { escrow: true, auction: true },
+    });
+    const shippingFee = Number(orderWithAuction?.auction?.shippingCost ?? (orderWithAuction as any)?.shippingFee ?? 0);
+    const shouldDeductShipping = Boolean(isRefusal && shippingFee > 0);
+
     // Refund escrow to buyer wallet now that seller has received returned product
     if (order.escrow) {
       try {
-        await this.escrowService.refundEscrow(order.escrow.id);
+        await this.escrowService.refundEscrow(order.escrow.id, shouldDeductShipping, shippingFee);
       } catch (e) {
         console.warn('Escrow refund failed', e?.message ?? e);
+      }
+    }
+
+    // Reopen product for auction/sale
+    if (orderWithAuction?.auction?.productId) {
+      try {
+        await this.prisma.product.update({
+          where: { id: orderWithAuction.auction.productId },
+          data: { status: ProductStatus.AVAILABLE },
+        });
+      } catch (err) {
+        console.warn('Could not reset product status', err);
+      }
+    }
+
+    // Deduct 0.2 rating points from buyer if they refused delivery without valid fault from seller
+    if (isRefusal) {
+      try {
+        const buyer = await this.prisma.user.findUnique({ where: { id: order.buyerId }, select: { rating: true } });
+        if (buyer) {
+          const currentRating = buyer.rating ?? 5.0;
+          const newRating = Math.max(1.0, Number((currentRating - 0.2).toFixed(1)));
+          await this.prisma.user.update({
+            where: { id: order.buyerId },
+            data: { rating: newRating },
+          });
+        }
+      } catch (e) {
+        console.warn('Could not update buyer rating', e);
       }
     }
 
@@ -554,17 +613,30 @@ export class OrdersService {
       }
     }
 
-    // Create notification for buyer that money was refunded
+    // Create notifications for buyer and seller
     try {
+      const buyerRefundAmount = shouldDeductShipping ? Math.max(0, order.totalAmount - shippingFee) : order.totalAmount;
       await this.prisma.notification.create({
         data: {
           userId: refund.buyerId,
           title: '💰 Hoàn tiền thành công',
-          content: `Người bán đã xác nhận nhận lại hàng hoàn. Số tiền ${new Intl.NumberFormat('vi-VN').format(order.totalAmount)} đ đã được hoàn trả về Ví Bazaar của bạn!`,
+          content: `Người bán đã xác nhận nhận lại kiện hàng bưu phẩm hoàn đơn #${orderId.slice(-6)}. Số tiền sản phẩm ${new Intl.NumberFormat('vi-VN').format(buyerRefundAmount)} đ đã được hoàn trả về Ví Bazaar của bạn!`,
           type: 'REFUND_COMPLETED',
           referenceId: orderId,
         },
       });
+
+      if (shouldDeductShipping) {
+        await this.prisma.notification.create({
+          data: {
+            userId: refund.sellerId,
+            title: '📦 Đã nhận lại hàng hoàn',
+            content: `Bạn đã xác nhận nhận lại kiện hàng đơn #${orderId.slice(-6)}. Cước phí bồi thường vận chuyển ${new Intl.NumberFormat('vi-VN').format(shippingFee)} đ đã được cộng vào Ví Bazaar của bạn và sản phẩm đã tự động mở bán lại.`,
+            type: 'REFUND_COMPLETED',
+            referenceId: orderId,
+          },
+        });
+      }
     } catch (err) {
       console.log('Could not create notification:', err?.message);
     }
@@ -911,105 +983,67 @@ export class OrdersService {
 
     if (!order) throw new NotFoundException('Order not found');
 
-    if (order.buyerId !== userId && order.sellerId !== userId) {
-      throw new ForbiddenException('You do not have permission to handle this order refusal');
+    if (order.buyerId !== userId) {
+      throw new ForbiddenException('Chỉ người mua mới có quyền từ chối nhận hàng');
     }
 
-    if (['COMPLETED', 'CANCELLED'].includes(String(order.status))) {
-      throw new BadRequestException('Order is already completed or cancelled');
+    if (['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(String(order.status))) {
+      throw new BadRequestException('Đơn hàng đã được giao tới nơi hoặc đã hoàn thành, bạn không thể trực tiếp từ chối nhận hàng. Nếu sản phẩm có sự cố, vui lòng gửi Yêu cầu Hoàn tiền.');
     }
 
-    const shippingCompensation = order.auction.shippingCost && order.auction.shippingCost > 0
-      ? order.auction.shippingCost
-      : 30000;
+    if (String(order.status) !== 'SHIPPED') {
+      throw new BadRequestException('Chỉ có thể từ chối nhận hàng khi đơn hàng đang được bưu cục vận chuyển (SHIPPED).');
+    }
 
-    let refundedToBuyer = 0;
-    let compensatedToSeller = 0;
+    const formattedReason = reason?.trim() ? `[TỪ CHỐI NHẬN HÀNG KHI SHIPPER GIAO]: ${reason.trim()}` : '[TỪ CHỐI NHẬN HÀNG KHI SHIPPER GIAO]';
 
-    await this.prisma.$transaction(async (tx) => {
-      if (order.escrow && (order.escrow.status === 'HELD' || order.escrow.status === 'RELEASED')) {
-        const totalAmount = order.totalAmount;
-        compensatedToSeller = Math.min(shippingCompensation, totalAmount);
-        refundedToBuyer = Math.max(0, totalAmount - compensatedToSeller);
+    // GIẢI PHÁP 2: TIỀN VẪN BỊ ĐÓNG BĂNG AN TOÀN TRONG KÉT ESCROW (HELD)!
+    // TUYỆT ĐỐI KHÔNG TỰ ĐỘNG BACK TIỀN VỀ VÍ NGAY!
+    let refund = await this.prisma.refundRequest.findFirst({
+      where: { orderId: order.id },
+    });
 
-        await tx.escrow.update({
-          where: { id: order.escrow.id },
-          data: { status: 'REFUNDED', refundedAt: new Date() },
-        });
-
-        if (compensatedToSeller > 0) {
-          let sellerWallet = await tx.wallet.findUnique({ where: { userId: order.sellerId } });
-          if (!sellerWallet) {
-            sellerWallet = await tx.wallet.create({ data: { userId: order.sellerId, balance: 0 } });
-          }
-          await tx.wallet.update({
-            where: { id: sellerWallet.id },
-            data: { balance: { increment: compensatedToSeller } },
-          });
-          await tx.walletTransaction.create({
-            data: {
-              walletId: sellerWallet.id,
-              type: 'CREDIT',
-              amount: compensatedToSeller,
-              reference: `refusal_compensation:order:${order.id}`,
-            },
-          });
-        }
-
-        if (refundedToBuyer > 0) {
-          let buyerWallet = await tx.wallet.findUnique({ where: { userId: order.buyerId } });
-          if (!buyerWallet) {
-            buyerWallet = await tx.wallet.create({ data: { userId: order.buyerId, balance: 0 } });
-          }
-          await tx.wallet.update({
-            where: { id: buyerWallet.id },
-            data: { balance: { increment: refundedToBuyer } },
-          });
-          await tx.walletTransaction.create({
-            data: {
-              walletId: buyerWallet.id,
-              type: 'REFUND',
-              amount: refundedToBuyer,
-              reference: `refusal_refund:order:${order.id}`,
-            },
-          });
-        }
-      }
-
-      const currentRating = order.buyer.rating ?? 5.0;
-      const newRating = Math.max(1.0, Number((currentRating - 0.5).toFixed(1)));
-      await tx.user.update({
-        where: { id: order.buyerId },
-        data: { rating: newRating },
-      });
-
-      await tx.order.update({
-        where: { id: orderId },
+    if (refund) {
+      refund = await this.prisma.refundRequest.update({
+        where: { id: refund.id },
         data: {
-          status: 'CANCELLED',
-          cancelledAt: new Date(),
+          status: 'APPROVED',
+          reason: formattedReason,
+          note: '[RETURNING_TO_SELLER]',
+          processedAt: new Date(),
         },
       });
+    } else {
+      refund = await this.prisma.refundRequest.create({
+        data: {
+          orderId: order.id,
+          buyerId: order.buyerId,
+          sellerId: order.sellerId,
+          reason: formattedReason,
+          status: 'APPROVED',
+          note: '[RETURNING_TO_SELLER]',
+          processedAt: new Date(),
+        },
+      });
+    }
 
-      if (order.auction && order.auction.productId) {
-        await tx.product.update({
-          where: { id: order.auction.productId },
-          data: { status: ProductStatus.AVAILABLE },
-        });
-      }
+    // Cập nhật trạng thái đơn hàng sang DISPUTED (đang quay đầu / chờ người bán xác nhận nhận lại)
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'DISPUTED' },
     });
 
     try {
       await this.notificationsService.createNotification(order.buyerId, {
-        title: 'Xác nhận Từ chối nhận hàng',
-        content: `Đơn hàng #${order.id.slice(-6)} đã bị hủy do từ chối nhận hàng. Số tiền ${refundedToBuyer.toLocaleString('vi-VN')} đ đã được hoàn về Ví của bạn (đã trừ ${compensatedToSeller.toLocaleString('vi-VN')} đ phí vận chuyển bồi thường cho Người bán). Điểm uy tín bị trừ 0.5 điểm.`,
+        title: '📦 Đã ghi nhận từ chối nhận bưu phẩm',
+        content: `Đơn hàng #${order.id.slice(-6)} đã chuyển sang trạng thái "Chờ bưu tá hoàn hàng về cho Người bán". Tiền sản phẩm sẽ được tự động hoàn về Ví Bazaar của bạn ngay khi Người bán xác nhận nhận lại bưu phẩm.`,
         type: 'ORDER_REFUSED',
         referenceId: order.id,
       });
 
       await this.notificationsService.createNotification(order.sellerId, {
-        title: 'Người mua Từ chối nhận hàng',
-        content: `Người mua đã từ chối nhận đơn hàng #${order.id.slice(-6)}. Ví của bạn đã được bồi thường ${compensatedToSeller.toLocaleString('vi-VN')} đ phí vận chuyển và sản phẩm đã được tự động mở bán lại.`,
+        title: '⚠️ Khách hàng từ chối nhận bưu phẩm',
+        content: `Người mua đã từ chối nhận đơn hàng #${order.id.slice(-6)} (Lý do: "${reason?.trim() || 'Hàng không phù hợp'}"). Kiện hàng đang trên đường chuyển hoàn về kho của bạn. Tiền ký quỹ đang được đóng băng an toàn trong két Escrow. Vui lòng bấm "Xác nhận nhận lại hàng hoàn" khi bưu phẩm về tới kho.`,
         type: 'ORDER_REFUSED',
         referenceId: order.id,
       });
@@ -1018,9 +1052,58 @@ export class OrdersService {
     }
 
     return {
-      message: 'Đã xử lý từ chối nhận hàng thành công',
-      refundedToBuyer,
-      compensatedToSeller,
+      message: 'Đã báo từ chối nhận hàng. Đơn hàng đang được chuyển hoàn về kho người bán.',
+      status: 'DISPUTED',
+      refundId: refund.id,
     };
+  }
+
+  async disputeRefusal(sellerId: string, orderId: string, reason: string, images?: string[]) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { refundRequests: true, buyer: true },
+    });
+
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.sellerId !== sellerId) throw new ForbiddenException('Chỉ người bán mới có quyền gửi khiếu nại');
+
+    const refund = order.refundRequests?.[0];
+    const formattedNote = `[SELLER_DISPUTE_REFUSAL] Người bán báo bưu tá đã giao hàng thành công: ${reason?.trim() || 'Khách đã nhận hàng nhưng ấn từ chối'}`;
+
+    if (refund) {
+      await this.prisma.refundRequest.update({
+        where: { id: refund.id },
+        data: {
+          note: formattedNote,
+          images: images && images.length > 0 ? images : refund.images,
+        },
+      });
+    }
+
+    // Đơn hàng tiếp tục giữ trạng thái DISPUTED, tiền tiếp tục đóng băng trong Escrow
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'DISPUTED' },
+    });
+
+    try {
+      await this.notificationsService.createNotification(order.buyerId, {
+        title: '⚠️ Người bán gửi khiếu nại đơn hàng',
+        content: `Người bán đơn hàng #${order.id.slice(-6)} khiếu nại: "Bưu tá báo đã giao hàng thành công cho bạn". Ban Quản Trị Bazaar đang tiến hành kiểm tra bằng chứng và sẽ phạt nặng tài khoản nếu phát hiện gian lận.`,
+        type: 'REFUND_REJECTED',
+        referenceId: order.id,
+      });
+
+      await this.notificationsService.createNotification(order.sellerId, {
+        title: '⚖️ Đã tiếp nhận khiếu nại giao vận',
+        content: `Khiếu nại của bạn về đơn hàng #${order.id.slice(-6)} đã được gửi tới Ban Quản Trị Bazaar. Tiền ký quỹ tiếp tục được bảo vệ an toàn trong két Escrow cho đến khi phân định xong.`,
+        type: 'REFUND_REJECTED',
+        referenceId: order.id,
+      });
+    } catch (e) {
+      console.log('Error creating dispute notification:', e);
+    }
+
+    return { message: 'Đã gửi khiếu nại lên Ban Quản Trị thành công!' };
   }
 }

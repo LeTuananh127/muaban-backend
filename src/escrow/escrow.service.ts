@@ -144,14 +144,14 @@ export class EscrowService {
     });
   }
 
-  async refundEscrow(escrowId: string) {
+  async refundEscrow(escrowId: string, deductShippingFee: boolean = false, shippingFeeAmount: number = 0) {
     const escrow = await this.getEscrow(escrowId);
 
     if (escrow.status !== EscrowStatus.HELD && escrow.status !== EscrowStatus.RELEASED) {
       throw new BadRequestException('Escrow is not in a refundable status');
     }
 
-    // Fetch the order to get the buyerId
+    // Fetch the order to get the buyerId and sellerId
     const order = await this.prisma.order.findUnique({
       where: { id: escrow.orderId },
     });
@@ -172,37 +172,77 @@ export class EscrowService {
         },
       });
 
-      // Get or create buyer's wallet
-      let wallet = await tx.wallet.findUnique({
-        where: { userId: order.buyerId },
-      });
+      const sellerCompensation = deductShippingFee && shippingFeeAmount > 0
+        ? Math.min(escrow.amount, Math.max(0, shippingFeeAmount))
+        : 0;
+      const buyerRefundAmount = Math.max(0, escrow.amount - sellerCompensation);
 
-      if (!wallet) {
-        wallet = await tx.wallet.create({
+      // 1. Add product money back to buyer's wallet
+      if (buyerRefundAmount > 0) {
+        let buyerWallet = await tx.wallet.findUnique({
+          where: { userId: order.buyerId },
+        });
+
+        if (!buyerWallet) {
+          buyerWallet = await tx.wallet.create({
+            data: {
+              userId: order.buyerId,
+              balance: 0,
+            },
+          });
+        }
+
+        await tx.wallet.update({
+          where: { id: buyerWallet.id },
           data: {
-            userId: order.buyerId,
-            balance: 0,
+            balance: { increment: buyerRefundAmount },
+          },
+        });
+
+        // Create refund transaction record
+        await tx.walletTransaction.create({
+          data: {
+            walletId: buyerWallet.id,
+            type: 'REFUND',
+            amount: buyerRefundAmount,
+            reference: sellerCompensation > 0
+              ? `Hoàn tiền đơn hàng #${order.id.slice(0, 8)} (đã trừ phí ship ${new Intl.NumberFormat('vi-VN').format(sellerCompensation)}đ bồi thường)`
+              : `Hoàn tiền 100% đơn hàng #${order.id.slice(0, 8)} (order:${order.id})`,
           },
         });
       }
 
-      // Add money back to buyer's wallet
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: {
-          balance: { increment: escrow.amount },
-        },
-      });
+      // 2. Compensate shipping fee to seller's wallet if order was shipped and refused
+      if (sellerCompensation > 0) {
+        let sellerWallet = await tx.wallet.findUnique({
+          where: { userId: order.sellerId },
+        });
 
-      // Create refund transaction record
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          type: 'REFUND',
-          amount: escrow.amount,
-          reference: `order:${order.id}`,
-        },
-      });
+        if (!sellerWallet) {
+          sellerWallet = await tx.wallet.create({
+            data: {
+              userId: order.sellerId,
+              balance: 0,
+            },
+          });
+        }
+
+        await tx.wallet.update({
+          where: { id: sellerWallet.id },
+          data: {
+            balance: { increment: sellerCompensation },
+          },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            walletId: sellerWallet.id,
+            type: 'CREDIT',
+            amount: sellerCompensation,
+            reference: `Bồi thường phí vận chuyển đơn hàng #${order.id.slice(0, 8)} do người mua từ chối nhận hàng`,
+          },
+        });
+      }
 
       // Deduct from seller's wallet if escrow was already released to them
       if (isAlreadyReleased) {
