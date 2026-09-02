@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FavoritesService } from './favorites.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('FavoritesService', () => {
   let service: FavoritesService;
@@ -12,6 +13,12 @@ describe('FavoritesService', () => {
         {
           provide: PrismaService,
           useValue: {},
+        },
+        {
+          provide: NotificationsService,
+          useValue: {
+            sendNotification: jest.fn(),
+          },
         },
       ],
     }).compile();

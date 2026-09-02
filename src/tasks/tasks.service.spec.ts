@@ -3,6 +3,7 @@ import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
 
 describe('TasksService', () => {
   let service: TasksService;
@@ -21,6 +22,10 @@ describe('TasksService', () => {
         },
         {
           provide: NotificationsService,
+          useValue: {},
+        },
+        {
+          provide: UsersService,
           useValue: {},
         },
       ],

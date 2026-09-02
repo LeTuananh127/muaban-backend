@@ -23,6 +23,11 @@ export class MessagesController {
     return this.messagesService.getConversations(req.user.userId);
   }
 
+  @Get('unread-count')
+  getUnreadCount(@Request() req) {
+    return this.messagesService.getUnreadCount(req.user.userId);
+  }
+
   @Get(':otherUserId')
   async getMessages(@Request() req, @Param('otherUserId') otherUserId: string) {
     return this.messagesService.getMessages(req.user.userId, otherUserId);

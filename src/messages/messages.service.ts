@@ -137,4 +137,14 @@ export class MessagesService {
       },
     });
   }
+
+  async getUnreadCount(userId: string) {
+    const count = await this.prisma.message.count({
+      where: {
+        receiverId: userId,
+        isRead: false,
+      },
+    });
+    return { count };
+  }
 }
